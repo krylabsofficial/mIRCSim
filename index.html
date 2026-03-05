@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="Local mIRC-style chat simulator powered by LLM personas">
+    <meta name="author" content="mIRCvibes">
+    <title>mIRC - LLM Chat Simulator</title>
+    <link rel="stylesheet" href="css/styles.css?v=13">
+</head>
+<body>
+    <!-- Demo Mode Banner -->
+    <div id="demo-banner" class="demo-banner hidden">
+        <span class="demo-icon">⚠️</span>
+        <span class="demo-text">DEMO MODE - Using pre-scripted responses</span>
+        <span class="demo-icon">⚠️</span>
+    </div>
+
+    <!-- Server Connection Dialog -->
+    <div id="connection-dialog" class="modal">
+        <div class="modal-content connection-dialog">
+            <div class="dialog-header">
+                <div class="dialog-title">mIRC - Server Connection</div>
+                <div class="dialog-subtitle">IRC Client v7.1 (LLM Edition)</div>
+            </div>
+            <div class="dialog-body">
+                <div class="server-info">
+                    <label for="server-address">Server Address:</label>
+                    <input type="text" id="server-address" placeholder="http://localhost:5000" value="http://localhost:5000">
+                    <div class="input-hint">Enter your LM Studio proxy address (or any IRC server)</div>
+                </div>
+                <div class="nickname-info">
+                    <label for="nickname">Nickname:</label>
+                    <input type="text" id="nickname" placeholder="User" maxlength="16" value="">
+                    <div class="input-hint">Choose your handle (max 16 characters)</div>
+                </div>
+                <div class="connection-options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="remember-settings" checked>
+                        Remember these settings
+                    </label>
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button id="btn-connect" class="btn btn-primary">Connect</button>
+                <button id="btn-demo-mode" class="btn btn-secondary">Skip & Use Demo Mode</button>
+            </div>
+            <div id="connection-status" class="connection-status hidden"></div>
+        </div>
+    </div>
+
+    <!-- Main IRC Interface -->
+    <div id="main-container" class="main-container hidden">
+        <!-- Menu Bar -->
+        <div class="menu-bar">
+            <div class="menu-item">File</div>
+            <div class="menu-item">View</div>
+            <div class="menu-item">Favorites</div>
+            <div class="menu-item">Tools</div>
+            <div class="menu-item">Commands</div>
+            <div class="menu-item">Window</div>
+            <div class="menu-item">Help</div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <div class="toolbar-group">
+                <button class="toolbar-btn" title="Connect">🔌</button>
+                <button class="toolbar-btn" title="Options">⚙️</button>
+                <button class="toolbar-btn" title="Channels">📋</button>
+                <button class="toolbar-btn" title="Notify">🔔</button>
+                <button class="toolbar-btn" title="Favorites">⭐</button>
+            </div>
+            <div class="toolbar-separator"></div>
+            <div class="toolbar-group">
+                <button class="toolbar-btn" title="Minimize All">📊</button>
+                <button class="toolbar-btn" title="Cascade">🪟</button>
+                <button class="toolbar-btn" title="Tile">📐</button>
+            </div>
+            <div class="toolbar-status">
+                <span id="status-icon" class="status-icon connected"></span>
+                <span id="status-text" class="status-text">Connected</span>
+                <span class="toolbar-divider">|</span>
+                <span id="current-nickname">User</span>
+                <span class="toolbar-divider">|</span>
+                <span id="current-server">localhost:5000</span>
+            </div>
+        </div>
+
+        <!-- Switchbar (Channel Tabs) -->
+        <div class="switchbar" id="switchbar">
+            <button class="switch-btn active" data-window="Status">
+                <span class="switch-icon">📊</span>
+                <span class="switch-label">Status</span>
+            </button>
+        </div>
+
+        <!-- MDI Container -->
+        <div class="mdi-container" id="mdi-container">
+            <!-- MDI Windows Area -->
+            <div class="mdi-workspace">
+                <!-- Status Window (default) -->
+                <div class="mdi-window active" id="window-Status" data-window="Status" style="top: 20px; left: 20px; width: 500px; height: 350px;">
+                    <div class="window-titlebar">
+                        <span class="window-icon">📊</span>
+                        <span class="window-title">Status</span>
+                        <div class="window-controls">
+                            <button class="window-btn minimize-btn" title="Minimize">_</button>
+                            <button class="window-btn maximize-btn" title="Maximize">□</button>
+                        </div>
+                    </div>
+                    <div class="window-content">
+                        <div class="window-main">
+                            <div class="message-area" id="messages-Status"></div>
+                            <div class="input-area">
+                                <input type="text" class="message-input window-input" placeholder="Type /help for commands..." autocomplete="off" data-window="Status">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="window-resize-handle"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Bar (Bottom) -->
+        <div class="status-bar">
+            <div class="status-section">
+                <span id="current-window">Status</span>
+            </div>
+            <div class="status-section">
+                <span id="user-count">0 users</span>
+            </div>
+            <div class="status-section">
+                <span id="mode-indicator"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Modules -->
+    <script src="js/utils.js"></script>
+    <script src="js/username-generator.js"></script>
+    <script src="js/topic-generator.js"></script>
+    <script src="js/ini-parser.js"></script>
+    <script src="js/config.js?v=13"></script></script>
+    <script src="js/demo.js"></script>
+    <script src="js/llm-client.js?v=6"></script>
+    <script src="js/ui.js?v=13"></script></script>
+    <script src="js/irc-commands.js"></script>
+    <script src="js/event-simulator.js?v=6"></script>
+    <script src="js/app.js?v=12"></script>
+</body>
+</html>

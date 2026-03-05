@@ -1,0 +1,203 @@
+{
+  "ZeroCool": {
+    "greetings": [
+      "yo what's up",
+      "hey everyone",
+      "sup",
+      "back from hacking the gibson",
+      "wassup hackers",
+      "yo yo yo"
+    ],
+    "responses": [
+      "lol nice try n00b",
+      "that's ez, just hack the mainframe",
+      "already did that yesterday",
+      "check this out: https://hack.the.planet",
+      "bruh that's some weak sauce",
+      "try using metasploit",
+      "firewall? what firewall lmao",
+      "1337 h4x0r skillz required",
+      "just use a VPN and you're good",
+      "exploit the buffer overflow duh"
+    ],
+    "reactions": [
+      "lmao",
+      "seriously?",
+      "wtf",
+      "nice one",
+      "rofl",
+      "haha classic",
+      "no way",
+      "that's dope"
+    ],
+    "idle": [
+      "brb getting coffee",
+      "anyone seen my USB?",
+      "this firewall is a joke",
+      "*types furiously*",
+      "compiling...",
+      "kernel panic lol",
+      "gonna grab some pizza",
+      "*cracks knuckles*"
+    ]
+  },
+  
+  "AcidBurn": {
+    "greetings": [
+      "hi",
+      "hey there",
+      "hello",
+      "sup nerds",
+      "what's going on"
+    ],
+    "responses": [
+      "seriously?",
+      "@ZeroCool you're such a show-off",
+      "I already did that last week",
+      "amateur hour over here",
+      "that won't work trust me",
+      "try actually reading the docs",
+      "oh please",
+      "you wish you could hack like me",
+      "been there done that",
+      "zero, stop being extra"
+    ],
+    "reactions": [
+      "*eyeroll*",
+      "oh please",
+      "sure thing",
+      "whatever",
+      "uh huh",
+      "right...",
+      "okay then",
+      "fascinating"
+    ],
+    "idle": [
+      "working on something interesting",
+      "anyone need help?",
+      "zero stop showing off",
+      "*sips coffee*",
+      "reviewing some code",
+      "found a bug in the kernel",
+      "*chuckles*"
+    ]
+  },
+  
+  "LordNikon": {
+    "greetings": [
+      "...",
+      "hey",
+      "greetings",
+      "hello"
+    ],
+    "responses": [
+      "interesting approach",
+      "you need to check the kernel headers",
+      "that won't scale well",
+      "consider using a different algorithm",
+      "the latency will be problematic",
+      "race condition potential there",
+      "memory leak in line 47",
+      "that's a known CVE",
+      "check the RFC specs",
+      "technically correct but inefficient"
+    ],
+    "reactions": [
+      "hmm",
+      "noted",
+      "correct",
+      "indeed",
+      "precisely",
+      "affirmative",
+      "logical"
+    ],
+    "idle": [
+      "*lurks*",
+      "reviewing the code",
+      "fascinating",
+      "*reading documentation*",
+      "analyzing...",
+      "*takes notes*",
+      "interesting pattern"
+    ]
+  },
+  
+  "Phantom": {
+    "greetings": [
+      "hey",
+      "who's there?",
+      "sup",
+      "yo"
+    ],
+    "responses": [
+      "are you sure that's secure?",
+      "sounds like a honeypot to me",
+      "don't trust that link",
+      "might be a trap",
+      "check for backdoors first",
+      "they're probably watching",
+      "encrypt everything",
+      "use tor or gtfo",
+      "that domain is sus",
+      "verify the hash first"
+    ],
+    "reactions": [
+      "suspicious...",
+      "hmm not sure",
+      "be careful",
+      "watch out",
+      "sketchy",
+      "idk man",
+      "seems off"
+    ],
+    "idle": [
+      "*checks logs*",
+      "scanning for threats",
+      "too quiet in here",
+      "*paranoia intensifies*",
+      "monitoring traffic",
+      "something feels wrong",
+      "*adjusts tinfoil hat*"
+    ]
+  },
+  
+  "CrashOverride": {
+    "greetings": [
+      "hey guys!",
+      "hi everyone!",
+      "hello!",
+      "what's up?"
+    ],
+    "responses": [
+      "wait how do I do that?",
+      "can someone explain?",
+      "is that in python?",
+      "which tool should I use?",
+      "that's so cool!",
+      "I want to learn that",
+      "wow you guys are amazing",
+      "can you teach me?",
+      "what does that mean?",
+      "where do I start?"
+    ],
+    "reactions": [
+      "awesome!",
+      "whoa",
+      "cool!",
+      "nice!",
+      "that's rad!",
+      "omg",
+      "teach me!",
+      "how??"
+    ],
+    "idle": [
+      "reading tutorials",
+      "*googles everything*",
+      "learning so much",
+      "this is exciting",
+      "*takes notes*",
+      "trying to keep up lol",
+      "you guys are fast"
+    ]
+  }
+}
