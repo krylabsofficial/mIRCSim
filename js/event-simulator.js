@@ -4,11 +4,18 @@
  */
 
 const EventSimulator = {
-    // Active timers
+    // Active timers (global events)
     timers: {},
+    
+    // Per-channel timers
+    channelTimers: {},
 
     // Event configuration
     events: {},
+
+    // Event types classification
+    globalEvents: ['quit', 'netsplit', 'kline'],
+    channelEvents: ['join', 'part', 'topic_change', 'kick', 'mode', 'idle_chatter'],
 
     /**
      * Initialize event simulator
@@ -26,13 +33,70 @@ const EventSimulator = {
         let startedCount = 0;
         for (const [eventType, config] of Object.entries(this.events)) {
             // Skip non-event sections (like lurker_names)
-            if (typeof config === 'object' && config.enabled && config.frequency) {
+            if (typeof config !== 'object' || !config.enabled || !config.frequency) continue;
+            
+            // Only start global events here
+            if (this.globalEvents.includes(eventType)) {
                 this.startEvent(eventType, config.frequency);
                 startedCount++;
-                console.log(`[EventSim] Started '${eventType}' event (freq: ${config.frequency}s)`);
+                console.log(`[EventSim] Started '${eventType}' global event (freq: ${config.frequency}s)`);
             }
         }
-        console.log(`[EventSim] Started ${startedCount} event timers`);
+        console.log(`[EventSim] Started ${startedCount} global event timers`);
+        console.log(`[EventSim] Channel events will start per-channel when channels are joined`);
+    },
+
+    /**
+     * Start all channel events for a specific channel
+     * @param {string} channel - Channel name
+     */
+    startChannelEvents(channel) {
+        if (!this.channelTimers[channel]) {
+            this.channelTimers[channel] = {};
+        }
+
+        let startedCount = 0;
+        for (const [eventType, config] of Object.entries(this.events)) {
+            if (typeof config !== 'object' || !config.enabled || !config.frequency) continue;
+            
+            // Only start channel events
+            if (this.channelEvents.includes(eventType)) {
+                this.startChannelEvent(channel, eventType, config.frequency);
+                startedCount++;
+            }
+        }
+        console.log(`[EventSim] Started ${startedCount} channel events for ${channel}`);
+    },
+
+    /**
+     * Start a specific channel event
+     * @param {string} channel - Channel name
+     * @param {string} eventType - Event type
+     * @param {number} frequency - Frequency in seconds
+     */
+    startChannelEvent(channel, eventType, frequency) {
+        // Ensure channel timer storage exists
+        if (!this.channelTimers[channel]) {
+            this.channelTimers[channel] = {};
+        }
+
+        // Clear existing timer if any
+        if (this.channelTimers[channel][eventType]) {
+            clearInterval(this.channelTimers[channel][eventType]);
+        }
+
+        // Skip chance varies by event type
+        const skipChance = eventType === 'idle_chatter' ? 0.6 : 0.5;
+
+        // Set up recurring timer
+        this.channelTimers[channel][eventType] = setInterval(() => {
+            // Random skip chance (makes events feel more natural)
+            if (Math.random() > skipChance) return;
+            
+            this.triggerChannelEvent(eventType, channel);
+        }, frequency * 1000);
+
+        console.log(`[EventSim] Timer started for '${eventType}' in ${channel} (every ${frequency}s)`);
     },
 
     /**
@@ -67,21 +131,39 @@ const EventSimulator = {
      * Stop all events
      */
     stopAllEvents() {
+        // Stop global events
         for (const eventType of Object.keys(this.timers)) {
             this.stopEvent(eventType);
+        }
+        // Stop all channel events
+        for (const channel of Object.keys(this.channelTimers)) {
+            this.stopChannelEvents(channel);
         }
     },
 
     /**
-     * Trigger a specific event
+     * Stop all events for a specific channel
+     * @param {string} channel - Channel name
+     */
+    stopChannelEvents(channel) {
+        if (!this.channelTimers[channel]) return;
+
+        for (const eventType of Object.keys(this.channelTimers[channel])) {
+            clearInterval(this.channelTimers[channel][eventType]);
+        }
+        delete this.channelTimers[channel];
+        console.log(`[EventSim] Stopped all events for ${channel}`);
+    },
+
+    /**
+     * Trigger a specific global event
      * @param {string} eventType - Event type
      */
     triggerEvent(eventType) {
-        console.log(`[EventSim] Trigger attempt: ${eventType}`);
+        console.log(`[EventSim] Trigger attempt (global): ${eventType}`);
         
         // Random chance to skip (makes events feel more natural)
-        // Higher skipChance = more likely to trigger
-        const skipChance = eventType === 'idle_chatter' ? 0.6 : 0.5;
+        const skipChance = 0.5; // 50% chance to trigger
         if (Math.random() > skipChance) {
             console.log(`[EventSim] ${eventType} skipped (random)`);
             return;
@@ -90,30 +172,44 @@ const EventSimulator = {
         console.log(`[EventSim] Executing ${eventType}...`);
 
         switch (eventType) {
-            case 'join':
-                this.simulateJoin();
-                break;
-            case 'part':
             case 'quit':
                 this.simulateQuit();
                 break;
             case 'netsplit':
                 this.simulateNetsplit();
                 break;
-            case 'topic_change':
-                this.simulateTopicChange();
-                break;
-            case 'kick':
-                this.simulateKick();
-                break;
-            case 'mode':
-                this.simulateModeChange();
-                break;
             case 'kline':
                 this.simulateKline();
                 break;
+        }
+    },
+
+    /**
+     * Trigger a specific channel event
+     * @param {string} eventType - Event type
+     * @param {string} channel - Channel name
+     */
+    triggerChannelEvent(eventType, channel) {
+        console.log(`[EventSim] Executing ${eventType} in ${channel}...`);
+
+        switch (eventType) {
+            case 'join':
+                this.simulateJoin(channel);
+                break;
+            case 'part':
+                this.simulatePart(channel);
+                break;
+            case 'topic_change':
+                this.simulateTopicChange(channel);
+                break;
+            case 'kick':
+                this.simulateKick(channel);
+                break;
+            case 'mode':
+                this.simulateModeChange(channel);
+                break;
             case 'idle_chatter':
-                this.simulateIdleChatter();
+                this.simulateIdleChatter(channel);
                 break;
         }
     },
@@ -132,13 +228,12 @@ const EventSimulator = {
     },
 
     /**
-     * Simulate user join
+     * Simulate user join (channel-based)
+     * @param {string} targetChannel - Target channel
      */
-    simulateJoin() {
-        // Pick a random channel from all joined channels
-        const targetChannel = this.getRandomChannel();
+    simulateJoin(targetChannel) {
         if (!targetChannel) {
-            console.log(`[EventSim] simulateJoin aborted - no valid channels`);
+            console.log(`[EventSim] simulateJoin aborted - no target channel`);
             return;
         }
 
@@ -163,19 +258,60 @@ const EventSimulator = {
     },
 
     /**
-     * Simulate user quit/part
+     * Simulate user part (channel-based)
+     * @param {string} targetChannel - Target channel
      */
-    simulateQuit() {
-        // Pick a random channel from all joined channels
-        const targetChannel = this.getRandomChannel();
+    simulatePart(targetChannel) {
         if (!targetChannel) {
-            console.log(`[EventSim] simulateQuit aborted - no valid channels`);
+            console.log(`[EventSim] simulatePart aborted - no target channel`);
             return;
         }
 
         // Get lurker names from config
         const lurkerNames = window.App.state.lurkers && window.App.state.lurkers[targetChannel];
-        console.log(`[EventSim] simulateQuit - ${targetChannel} lurkerNames:`, lurkerNames ? lurkerNames.length : 0);
+        console.log(`[EventSim] simulatePart - ${targetChannel} lurkerNames:`, lurkerNames ? lurkerNames.length : 0);
+        
+        if (!lurkerNames || lurkerNames.length === 0) {
+            console.log(`[EventSim] simulatePart aborted - no lurker names`);
+            return;
+        }
+
+        const nick = Utils.randomChoice(lurkerNames);
+        const partMessages = [
+            'later',
+            'gotta go',
+            'brb',
+            'see ya',
+            'cya',
+            ''  // No message
+        ];
+
+        const partMsg = Utils.randomChoice(partMessages);
+        const partText = partMsg ? ` (${partMsg})` : '';
+
+        console.log(`[EventSim] ${nick} parting from ${targetChannel}`);
+
+        UI.addMessage({
+            type: 'part',
+            text: `* ${nick} has left ${targetChannel}${partText}`,
+            timestamp: new Date()
+        }, targetChannel);
+    },
+
+    /**
+     * Simulate user quit (GLOBAL - affects ALL channels where user is present)
+     */
+    simulateQuit() {
+        // Get ALL channels
+        const channels = this.getRandomChannel() ? Object.keys(window.App.state.channelUsers).filter(ch => ch !== 'Status') : [];
+        if (channels.length === 0) {
+            console.log(`[EventSim] simulateQuit aborted - no channels`);
+            return;
+        }
+
+        // Pick a random lurker from a random channel
+        const randomChannel = Utils.randomChoice(channels);
+        const lurkerNames = window.App.state.lurkers && window.App.state.lurkers[randomChannel];
         
         if (!lurkerNames || lurkerNames.length === 0) {
             console.log(`[EventSim] simulateQuit aborted - no lurker names`);
@@ -187,20 +323,36 @@ const EventSimulator = {
             'Ping timeout',
             'Read error: Connection reset by peer',
             'Client Quit',
-            'later',
-            'gotta go',
-            'brb'
+            'Connection reset by peer',
+            'Remote host closed the connection'
         ];
 
         const quitMsg = Utils.randomChoice(quitMessages);
 
-        console.log(`[EventSim] ${nick} quitting from ${targetChannel}`);
+        // Find ALL channels where this lurker is present
+        const channelsWithLurker = [];
+        for (const channel of channels) {
+            const channelLurkers = window.App.state.lurkers && window.App.state.lurkers[channel];
+            if (channelLurkers && channelLurkers.includes(nick)) {
+                channelsWithLurker.push(channel);
+            }
+        }
 
-        UI.addMessage({
-            type: 'quit',
-            text: `* ${nick} has quit IRC (${quitMsg})`,
-            timestamp: new Date()
-        }, targetChannel);
+        if (channelsWithLurker.length === 0) {
+            console.log(`[EventSim] ${nick} not found in any channel lurkers`);
+            return;
+        }
+
+        console.log(`[EventSim] ${nick} quitting from ${channelsWithLurker.length} channels: ${channelsWithLurker.join(', ')}`);
+
+        // Show quit message ONLY in channels where lurker is present
+        for (const channel of channelsWithLurker) {
+            UI.addMessage({
+                type: 'quit',
+                text: `* ${nick} has quit IRC (${quitMsg})`,
+                timestamp: new Date()
+            }, channel);
+        }
     },
 
     /**
@@ -277,8 +429,7 @@ const EventSimulator = {
     /**
      * Simulate topic change
      */
-    simulateTopicChange() {
-        const targetChannel = this.getRandomChannel();
+    simulateTopicChange(targetChannel) {
         if (!targetChannel) return;
 
         const activePersonas = window.App.state.activePersonas && window.App.state.activePersonas[targetChannel];
@@ -302,9 +453,9 @@ const EventSimulator = {
 
     /**
      * Simulate kick
+     * @param {string} targetChannel - Target channel
      */
-    simulateKick() {
-        const targetChannel = this.getRandomChannel();
+    simulateKick(targetChannel) {
         if (!targetChannel) return;
 
         const activePersonas = window.App.state.activePersonas && window.App.state.activePersonas[targetChannel];
@@ -336,8 +487,7 @@ const EventSimulator = {
     /**
      * Simulate mode change
      */
-    simulateModeChange() {
-        const targetChannel = this.getRandomChannel();
+    simulateModeChange(targetChannel) {
         if (!targetChannel) return;
 
         const activePersonas = window.App.state.activePersonas && window.App.state.activePersonas[targetChannel];
@@ -362,9 +512,51 @@ const EventSimulator = {
             moderator = 'ChanServ';
         }
 
-        const nick = Utils.randomChoice(lurkerNames);
-        const modes = ['+o', '+v', '-v'];
-        const mode = Utils.randomChoice(modes);
+        // Pick a random lurker who's actually in the channel
+        const channelLurkers = channelUsers.filter(u => 
+            lurkerNames.includes(u.nick) && u.nick !== window.Config.state.nickname
+        );
+        
+        if (channelLurkers.length === 0) return;
+        
+        const targetUser = Utils.randomChoice(channelLurkers);
+        const nick = targetUser.nick;
+        
+        // Choose appropriate mode based on current user state
+        let mode;
+        if (targetUser.mode === 'operator') {
+            // Operator can only be deopped or given voice (no-op)
+            mode = Math.random() < 0.3 ? '-o' : '+v';
+        } else if (targetUser.mode === 'voice') {
+            // Voiced user can be opped, devoiced
+            mode = Utils.randomChoice(['+o', '-v']);
+        } else {
+            // Regular user can be opped or voiced
+            mode = Utils.randomChoice(['+o', '+v']);
+        }
+
+        // Apply the mode change to the user
+        const userIndex = channelUsers.findIndex(u => u.nick === nick);
+        if (userIndex !== -1) {
+            if (mode === '+o') {
+                channelUsers[userIndex].mode = 'operator';
+            } else if (mode === '-o') {
+                channelUsers[userIndex].mode = null;
+            } else if (mode === '+v') {
+                // Only set voice if not already an operator
+                if (channelUsers[userIndex].mode !== 'operator') {
+                    channelUsers[userIndex].mode = 'voice';
+                }
+            } else if (mode === '-v') {
+                // Only remove voice if not an operator
+                if (channelUsers[userIndex].mode === 'voice') {
+                    channelUsers[userIndex].mode = null;
+                }
+            }
+            
+            // Re-render user list to show updated modes
+            UI.renderUserList(channelUsers, window.Config.state.nickname, targetChannel);
+        }
 
         UI.addMessage({
             type: 'mode',
@@ -401,13 +593,18 @@ const EventSimulator = {
     /**
      * Simulate idle chatter from active personas
      */
-    async simulateIdleChatter() {
-        // Pick a random channel from all joined channels
-        const targetChannel = this.getRandomChannel();
-        if (!targetChannel) return;
+    async simulateIdleChatter(targetChannel) {
+        // Use provided channel instead of picking random
+        if (!targetChannel) {
+            console.log('[EventSim] simulateIdleChatter: no target channel');
+            return;
+        }
 
         const activePersonas = window.App.state.activePersonas && window.App.state.activePersonas[targetChannel];
-        if (!activePersonas || activePersonas.length === 0) return;
+        if (!activePersonas || activePersonas.length === 0) {
+            console.log(`[EventSim] simulateIdleChatter: no active personas in ${targetChannel}`);
+            return;
+        }
 
         // Pick a random active persona
         const persona = Utils.randomChoice(activePersonas);

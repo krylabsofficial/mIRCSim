@@ -20,9 +20,12 @@ A fully local, retro IRC-style web application where you chat with AI-powered pe
 - 🌈 **Theme system** - 4 color themes (Classic, Dark, Matrix, Hacker) console-accessible
 - 👥 **Dynamic channels** - Join ANY channel, auto-populated with 40-50 users
 - 🎲 **Event simulation** - Realistic IRC events (joins, parts, quits, mode changes, netsplits)
+- ⚙️ **Event Settings UI** - Visual preset system (Chaotic, Normal, Chill, Custom) with real-time editing
+- 🪟 **MDI Window Management** - Cascade, Tile, Minimize All with multi-directional resize
 - 💾 **State persistence** - Window positions and settings saved to localStorage
 - 🎪 **Auto-scroll** - Always stay at the newest messages across all channels
 - ⚡ **Performance optimized** - 500 message limit per channel with auto-cleanup
+- 🔌 **Disconnect button** - Quick return to connection screen
 
 ## 🚀 Quick Start
 
@@ -131,12 +134,13 @@ mIRCSim/
 │   └── styles.css          # Retro mIRC styling (1112 lines)
 │
 ├── js/                     # Core application modules
-│   ├── app.js              # Main orchestration, channel management (706 lines)
-│   ├── ui.js               # MDI windows, message rendering (873 lines)
+│   ├── app.js              # Main orchestration, channel management (748 lines)
+│   ├── ui.js               # MDI windows, message rendering (1131 lines)
 │   ├── config.js           # Configuration, theme system (394 lines)
 │   ├── llm-client.js       # LM Studio API integration (353 lines)
 │   ├── irc-commands.js     # IRC command handlers (378 lines)
 │   ├── event-simulator.js  # Event simulation engine (517 lines)
+│   ├── event-settings-ui.js # Event preset UI (Chaotic/Normal/Chill/Custom)
 │   ├── demo.js             # Demo mode logic (149 lines)
 │   ├── ini-parser.js       # INI file parser (148 lines)
 │   ├── username-generator.js # IRC username generation (98 lines)
@@ -145,9 +149,8 @@ mIRCSim/
 │
 └── settings/               # Configuration files (INI format)
     ├── README.md           # Detailed configuration guide
-    ├── personas.ini        # 23 AI personas (customize here)
-    ├── themes.ini          # 4 color themes (classic, dark, matrix, hacker)
-    └── events.ini          # Event simulation config (intervals, lurker names)
+    ├── personas.ini        # 23 AI personas + lurker names (customize here)
+    └── themes.ini          # 4 color themes (classic, dark, matrix, hacker)
 ```
 
 **Total Lines of Code:** ~5,000 (JavaScript, CSS, HTML)  
@@ -216,37 +219,39 @@ Config.setTheme('classic')  // Back to classic
 
 Themes persist in localStorage and apply on reload.
 
-### Events (settings/events.ini)
+### Event Settings (⚙️ Button)
 
-Event simulation controls background IRC activity (joins, parts, netsplits, etc.).
+Event simulation is now configured through a **visual Settings UI** accessible via the gear (🎛️) button in the toolbar.
 
-**Format:**
-```ini
-[lurkers]
-names = Alice,Bob,Charlie,David,Emma,Frank,Grace,Henry,Iris,Jack,...
-
-[events]
-join_interval_min = 15000
-join_interval_max = 45000
-quit_interval_min = 30000
-quit_interval_max = 90000
-part_interval_min = 25000
-part_interval_max = 75000
-mode_interval_min = 60000
-mode_interval_max = 180000
-netsplit_interval_min = 300000
-netsplit_interval_max = 900000
-```
+**Presets:**
+1. **Chaotic** - Fast-paced events (10-40 second intervals, high frequency)
+2. **Normal** - Balanced activity (20-120 second intervals, moderate frequency)
+3. **Chill** - Relaxed pace (60-180+ second intervals, low frequency)
+4. **Custom** - Manually adjusted (automatically activated when you change any value)
 
 **Event Types:**
 - **Joins:** New users join channels (green color)
 - **Parts:** Users leave channels (brown color)
 - **Quits:** Users disconnect from server (dark blue color)
-- **Mode changes:** Operators grant/revoke +o/+v (green color, ops only)
+- **Mode changes:** Operators grant/revoke +o/+v (green color)
+- **Kicks:** Operators remove disruptive users (red color)
+- **Topic changes:** Updates channel topic (blue color)
 - **Netsplits:** Server disconnections with delayed rejoins (brown color)
+- **K-lines:** Server bans (red color)
+- **Idle chatter:** Background lurker messages (planned)
+
+**How to Use:**
+1. Click the gear icon (🎛️) in the toolbar
+2. Select a preset or adjust individual event frequencies
+3. Toggle events on/off with checkboxes
+4. Settings save automatically to localStorage
+5. Custom mode activates when you modify any preset value
+
+**Lurker Pool:**
+Background users are loaded from the `[lurkers]` section in `personas.ini` (180+ names by default).
 
 **Permissions:**
-Only operators (@) or ChanServ can perform mode changes - regular users can't grant ops/voice.
+Only operators (@) or ChanServ can perform mode changes, kicks, and topic changes.
 
 ### Channels  
 
@@ -272,6 +277,7 @@ If the main user receives operator status (@) when joining, ChanServ sends a wel
 
 ### Channel Commands
 - `/join #channel` - Join a channel (auto-creates if doesn't exist)
+- `/join #chan1,#chan2,#chan3` - Join multiple channels at once (comma-separated)
 - `/part [#channel] [message]` - Leave current or specified channel
 - `/list` - Show all currently joined channels
 - `/topic [text]` - View or set channel topic (ops only)
@@ -289,20 +295,30 @@ If the main user receives operator status (@) when joining, ChanServ sends a wel
 - `/notice nick message` - Send notice to user
 
 ### IRC Operator Commands
-- `/mode user +o` - Grant operator status (ops only)
-- `/mode user +v` - Grant voice status (ops only)
-- `/mode user -o` - Remove operator status (ops only)
-- `/mode user -v` - Remove voice status (ops only)
+- `/op user` - Grant operator status (ops only)
+- `/deop user` - Remove operator status (ops only)
+- `/voice user` - Grant voice status (ops only)
+- `/devoice user` - (alias: `/mode user -v`)
+- `/mode user +o` - Grant operator status (alternate syntax)
+- `/mode user +v` - Grant voice status (alternate syntax)
+- `/mode user -o` - Remove operator status (alternate syntax)
+- `/mode user -v` - Remove voice status (alternate syntax)
 - `/kick nick [reason]` - Kick user from channel (ops only)
+- `!op` - Request operator status from ChanServ (auto-op if eligible)
+
+### Window Management
+- `/clear` - Clear current window's message history
+- **📊 Minimize All** - Minimize all windows except Status
+- **🗂️ Cascade Windows** - Stagger windows diagonally (Status first)
+- **⊞ Tile Windows** - Arrange non-minimized windows in grid layout
 
 ### Server Commands
 - `/server url` - Change LM Studio server address
 - `/connect` - Reconnect to server
-- `/disconnect` - Disconnect from server
+- `/disconnect` - Disconnect from server (or use ⚡ button)
 
 ### Utility
 - `/help [command]` - Show help for all or specific command
-- `/clear` - Clear current window's message history
 
 **Tips:**
 - Direct mentions work with shortened names: "hey zero" finds ZeroCool
@@ -393,13 +409,14 @@ If the main user receives operator status (@) when joining, ChanServ sends a wel
 - ✅ If still seeing, refresh browser hard (`Ctrl+F5`)
 
 **No lurker events (joins/parts/quits)**
-- ✅ Check `settings/events.ini` exists with [lurkers] section
-- ✅ Events interval is random - wait 15-90 seconds
+- ✅ Check `settings/personas.ini` has [lurkers] section with names
+- ✅ Events interval is random - varies by preset (Chaotic/Normal/Chill)
 - ✅ Events distribute across ALL open channels, not just current
+- ✅ Open Event Settings UI (🏛️ button) to adjust event frequency
 
 **Netsplits never happen**
-- ✅ Netsplits are rare by design (5-15 minute intervals)
-- ✅ Check `settings/events.ini` for netsplit_interval settings
+- ✅ Netsplits are rare by design (varies by Event Settings preset)
+- ✅ Open Event Settings UI (🏛️ button) and check netsplit slider
 - ✅ Netsplits only happen if multiple users are present
 
 ### Configuration Issues
@@ -414,11 +431,6 @@ If the main user receives operator status (@) when joining, ChanServ sends a wel
 - ✅ Check file exists: `settings/themes.ini`
 - ✅ Copy from `settings/themes.ini.example` if missing
 - ✅ Verify INI format with sections like `[classic]`, `[dark]`
-
-**events.ini not working**
-- ✅ Ensure file is at `settings/events.ini`
-- ✅ Check [lurkers] section has `names = Alice,Bob,Charlie,...`
-- ✅ Check [events] section has interval settings
 
 ### Browser-Specific Issues
 

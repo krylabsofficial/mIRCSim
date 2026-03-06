@@ -20,6 +20,11 @@ const UI = {
         this.cacheElements();
         this.attachEventListeners();
         this.initializeStatusWindow();
+        
+        // Make toolbar icons bigger
+        document.querySelectorAll('.toolbar-btn').forEach(btn => {
+            btn.style.fontSize = '18px';
+        });
     },
 
     /**
@@ -50,6 +55,9 @@ const UI = {
             mdiContainer: document.getElementById('mdi-container'),
             mdiWorkspace: document.querySelector('.mdi-workspace'),
             switchbar: document.getElementById('switchbar'),
+
+            // Toolbar buttons
+            disconnectButton: document.getElementById('btn-disconnect'),
 
             // Status display
             currentWindowDisplay: document.getElementById('current-window'),
@@ -144,6 +152,29 @@ const UI = {
                 const themeName = Config.cycleTheme();
                 this.updateThemeButtonTooltip(themeName);
                 console.log(`[UI] Switched to theme: ${themeName}`);
+            });
+        }
+
+        // Window management buttons
+        const minimizeAllBtn = document.getElementById('btn-minimize-all');
+        const cascadeBtn = document.getElementById('btn-cascade');
+        const tileBtn = document.getElementById('btn-tile');
+        
+        if (minimizeAllBtn) {
+            minimizeAllBtn.addEventListener('click', () => {
+                this.minimizeAllWindows();
+            });
+        }
+        
+        if (cascadeBtn) {
+            cascadeBtn.addEventListener('click', () => {
+                this.cascadeWindows();
+            });
+        }
+        
+        if (tileBtn) {
+            tileBtn.addEventListener('click', () => {
+                this.tileWindows();
             });
         }
     },
@@ -269,6 +300,103 @@ const UI = {
     },
 
     /**
+     * Cascade all windows (staggered layout starting with Status)
+     */
+    cascadeWindows() {
+        // Get all non-minimized windows
+        const windows = Array.from(document.querySelectorAll('.mdi-window'));
+        
+        if (windows.length === 0) return;
+
+        // Sort windows: Status first, then others
+        windows.sort((a, b) => {
+            const aName = a.dataset.window;
+            const bName = b.dataset.window;
+            if (aName === 'Status') return -1;
+            if (bName === 'Status') return 1;
+            return 0;
+        });
+
+        // Cascade parameters
+        const startX = 0;
+        const startY = 0;
+        const offsetX = 25;
+        const offsetY = 25;
+        const defaultWidth = 500;
+        const defaultHeight = 400;
+
+        // Position each window
+        windows.forEach((win, index) => {
+            // Restore if maximized
+            win.classList.remove('maximized');
+            
+            // Calculate position
+            const x = startX + (index * offsetX);
+            const y = startY + (index * offsetY);
+            
+            // Apply position and size
+            win.style.left = x + 'px';
+            win.style.top = y + 'px';
+            win.style.width = defaultWidth + 'px';
+            win.style.height = defaultHeight + 'px';
+            win.style.transform = 'none';
+        });
+
+        // Activate the last window in cascade (brings it to front)
+        if (windows.length > 0) {
+            this.activateWindow(windows[windows.length - 1].dataset.window);
+        }
+    },
+
+    /**
+     * Tile all non-minimized windows (grid layout)
+     */
+    tileWindows() {
+        // Get all non-minimized windows
+        const windows = Array.from(document.querySelectorAll('.mdi-window:not(.minimized)'));
+        
+        if (windows.length === 0) return;
+
+        // Get workspace dimensions (mdi-workspace)
+        const workspace = document.querySelector('.mdi-workspace');
+        if (!workspace) return;
+
+        const workspaceRect = workspace.getBoundingClientRect();
+        const workspaceWidth = workspaceRect.width;
+        const workspaceHeight = workspaceRect.height;
+
+        // Calculate grid dimensions
+        const count = windows.length;
+        const cols = Math.ceil(Math.sqrt(count));
+        const rows = Math.ceil(count / cols);
+
+        // Calculate window size with padding
+        const padding = 0;
+        const windowWidth = (workspaceWidth / cols) - (padding * 2);
+        const windowHeight = (workspaceHeight / rows) - (padding * 2);
+
+        // Position each window
+        windows.forEach((win, index) => {
+            // Restore if maximized
+            win.classList.remove('maximized');
+            
+            // Calculate grid position
+            const col = index % cols;
+            const row = Math.floor(index / cols);
+            
+            const x = padding + (col * (windowWidth + padding * 2));
+            const y = padding + (row * (windowHeight + padding * 2));
+            
+            // Apply position and size
+            win.style.left = x + 'px';
+            win.style.top = y + 'px';
+            win.style.width = windowWidth + 'px';
+            win.style.height = windowHeight + 'px';
+            win.style.transform = 'none';
+        });
+    },
+
+    /**
      * Minimize a window
      * @param {string} windowName - Window name
      */
@@ -284,6 +412,125 @@ const UI = {
                 }
             }
         }
+    },
+
+    /**
+     * Minimize all windows except Status
+     */
+    minimizeAllWindows() {
+        const windows = document.querySelectorAll('.mdi-window');
+        let hasNonStatusWindow = false;
+        
+        windows.forEach(win => {
+            const windowName = win.dataset.window;
+            // Don't minimize Status window
+            if (windowName !== 'Status') {
+                win.classList.add('minimized');
+                hasNonStatusWindow = true;
+            }
+        });
+        
+        // If we minimized any windows, make Status active
+        if (hasNonStatusWindow) {
+            this.activateWindow('Status');
+        }
+    },
+
+    /**
+     * Cascade all windows (staggered layout starting with Status)
+     */
+    cascadeWindows() {
+        // Get all windows (including minimized for now, we'll restore them)
+        const windows = Array.from(document.querySelectorAll('.mdi-window'));
+        
+        if (windows.length === 0) return;
+
+        // Sort windows: Status first, then others
+        windows.sort((a, b) => {
+            const aName = a.dataset.window;
+            const bName = b.dataset.window;
+            if (aName === 'Status') return -1;
+            if (bName === 'Status') return 1;
+            return 0;
+        });
+
+        // Cascade parameters
+        const startX = 0;
+        const startY = 0;
+        const offsetX = 25;
+        const offsetY = 25;
+        const defaultWidth = 500;
+        const defaultHeight = 400;
+
+        // Position each window
+        windows.forEach((win, index) => {
+            // Restore if minimized or maximized
+            win.classList.remove('minimized', 'maximized');
+            
+            // Calculate position
+            const x = startX + (index * offsetX);
+            const y = startY + (index * offsetY);
+            
+            // Apply position and size
+            win.style.left = x + 'px';
+            win.style.top = y + 'px';
+            win.style.width = defaultWidth + 'px';
+            win.style.height = defaultHeight + 'px';
+            win.style.transform = 'none';
+        });
+
+        // Activate the last window in cascade (brings it to front)
+        if (windows.length > 0) {
+            this.activateWindow(windows[windows.length - 1].dataset.window);
+        }
+    },
+
+    /**
+     * Tile all non-minimized windows (grid layout)
+     */
+    tileWindows() {
+        // Get all non-minimized windows
+        const windows = Array.from(document.querySelectorAll('.mdi-window:not(.minimized)'));
+        
+        if (windows.length === 0) return;
+
+        // Get workspace dimensions (mdi-workspace)
+        const workspace = document.querySelector('.mdi-workspace');
+        if (!workspace) return;
+
+        const workspaceRect = workspace.getBoundingClientRect();
+        const workspaceWidth = workspaceRect.width;
+        const workspaceHeight = workspaceRect.height;
+
+        // Calculate grid dimensions
+        const count = windows.length;
+        const cols = Math.ceil(Math.sqrt(count));
+        const rows = Math.ceil(count / cols);
+
+        // Calculate window size with padding
+        const padding = 0;
+        const windowWidth = (workspaceWidth / cols) - (padding * 2);
+        const windowHeight = (workspaceHeight / rows) - (padding * 2);
+
+        // Position each window
+        windows.forEach((win, index) => {
+            // Restore if maximized
+            win.classList.remove('maximized');
+            
+            // Calculate grid position
+            const col = index % cols;
+            const row = Math.floor(index / cols);
+            
+            const x = padding + (col * (windowWidth + padding * 2));
+            const y = padding + (row * (windowHeight + padding * 2));
+            
+            // Apply position and size
+            win.style.left = x + 'px';
+            win.style.top = y + 'px';
+            win.style.width = windowWidth + 'px';
+            win.style.height = windowHeight + 'px';
+            win.style.transform = 'none';
+        });
     },
 
     /**
@@ -361,6 +608,10 @@ const UI = {
         const title = document.createElement('span');
         title.className = 'window-title';
         title.textContent = windowName;
+        title.style.whiteSpace = 'nowrap';
+        title.style.overflow = 'hidden';
+        title.style.textOverflow = 'ellipsis';
+        title.style.minWidth = '0';
         titlebar.appendChild(title);
 
         // Window controls
@@ -724,6 +975,14 @@ const UI = {
             messageArea.innerHTML = '';
         }
         this.messageHistory[targetWindow] = [];
+    },
+
+    /**
+     * Clear chat (alias for clearMessages for /clear command)
+     * @param {string} windowName - Window name
+     */
+    clearChat(windowName = null) {
+        this.clearMessages(windowName);
     },
 
     /**

@@ -44,6 +44,14 @@ const IRCCommands = {
                 return this.cmdKick(args);
             case 'mode':
                 return this.cmdMode(args);
+            case 'op':
+                return this.cmdOp(args);
+            case 'deop':
+                return this.cmdDeop(args);
+            case 'voice':
+                return this.cmdVoice(args);
+            case 'clear':
+                return this.cmdClear(args);
             case 'server':
                 return this.cmdServer(args);
             case 'quit':
@@ -60,33 +68,40 @@ const IRCCommands = {
     },
 
     /**
-     * /join - Join a channel
+     * /join - Join a channel (or multiple comma-separated channels)
      * @param {Array} args - Command arguments
      */
     cmdJoin(args) {
         if (args.length === 0) {
             return {
                 success: false,
-                message: 'Usage: /join #channel',
+                message: 'Usage: /join #channel or /join #chan1,#chan2,#chan3',
                 handled: true
             };
         }
 
-        let channel = args[0];
-        if (!channel.startsWith('#')) {
-            channel = '#' + channel;
-        }
+        // Join all args into one string in case channels were space-separated after commas
+        const channelString = args.join(' ');
+        
+        // Split by commas to support multi-join
+        const channelList = channelString.split(',').map(ch => ch.trim()).filter(ch => ch.length > 0);
 
-        if (!Utils.isValidChannel(channel)) {
-            return {
-                success: false,
-                message: `Invalid channel name: ${channel}`,
-                handled: true
-            };
-        }
+        // Process each channel
+        for (let channel of channelList) {
+            // Add # prefix if not present
+            if (!channel.startsWith('#')) {
+                channel = '#' + channel;
+            }
 
-        // Let App handle the actual join
-        window.App.joinChannel(channel);
+            // Validate channel name
+            if (!Utils.isValidChannel(channel)) {
+                UI.addErrorMessage(`Invalid channel name: ${channel}`, 'Status');
+                continue; // Skip invalid channels but process the rest
+            }
+
+            // Let App handle the actual join
+            window.App.joinChannel(channel);
+        }
 
         return {
             success: true,
@@ -568,6 +583,235 @@ const IRCCommands = {
     },
 
     /**
+     * /op - Give operator status to a user
+     * @param {Array} args - Command arguments
+     */
+    cmdOp(args) {
+        const currentWindow = window.UI.activeWindow;
+        
+        if (currentWindow === 'Status') {
+            return {
+                success: false,
+                message: 'Cannot op users in Status window',
+                handled: true
+            };
+        }
+
+        if (args.length === 0) {
+            UI.addErrorMessage('Usage: /op nickname', currentWindow);
+            return {
+                success: false,
+                message: null,
+                handled: true
+            };
+        }
+
+        // Check if user is op
+        const users = window.App.state.channelUsers[currentWindow] || [];
+        const currentUser = users.find(u => u.nick === Config.state.nickname);
+        
+        if (!currentUser || currentUser.mode !== 'operator') {
+            UI.addErrorMessage('You must be a channel operator to op users', currentWindow);
+            return {
+                success: false,
+                message: null,
+                handled: true
+            };
+        }
+
+        const targetNick = args[0];
+
+        // Find target user
+        const targetIndex = users.findIndex(u => u.nick === targetNick);
+        if (targetIndex === -1) {
+            UI.addErrorMessage(`No such user: ${targetNick}`, currentWindow);
+            return {
+                success: false,
+                message: null,
+                handled: true
+            };
+        }
+
+        // Apply operator mode
+        users[targetIndex].mode = 'operator';
+
+        // Show mode change message
+        UI.addMessage({
+            type: 'mode',
+            text: `* ${Config.state.nickname} sets mode: +o ${targetNick}`,
+            timestamp: new Date()
+        }, currentWindow);
+
+        // Re-render user list
+        UI.renderUserList(users, Config.state.nickname, currentWindow);
+
+        return {
+            success: true,
+            message: null,
+            handled: true
+        };
+    },
+
+    /**
+     * /deop - Remove operator status from a user
+     * @param {Array} args - Command arguments
+     */
+    cmdDeop(args) {
+        const currentWindow = window.UI.activeWindow;
+        
+        if (currentWindow === 'Status') {
+            return {
+                success: false,
+                message: 'Cannot deop users in Status window',
+                handled: true
+            };
+        }
+
+        if (args.length === 0) {
+            UI.addErrorMessage('Usage: /deop nickname', currentWindow);
+            return {
+                success: false,
+                message: null,
+                handled: true
+            };
+        }
+
+        // Check if user is op
+        const users = window.App.state.channelUsers[currentWindow] || [];
+        const currentUser = users.find(u => u.nick === Config.state.nickname);
+        
+        if (!currentUser || currentUser.mode !== 'operator') {
+            UI.addErrorMessage('You must be a channel operator to deop users', currentWindow);
+            return {
+                success: false,
+                message: null,
+                handled: true
+            };
+        }
+
+        const targetNick = args[0];
+
+        // Find target user
+        const targetIndex = users.findIndex(u => u.nick === targetNick);
+        if (targetIndex === -1) {
+            UI.addErrorMessage(`No such user: ${targetNick}`, currentWindow);
+            return {
+                success: false,
+                message: null,
+                handled: true
+            };
+        }
+
+        // Remove operator mode
+        users[targetIndex].mode = null;
+
+        // Show mode change message
+        UI.addMessage({
+            type: 'mode',
+            text: `* ${Config.state.nickname} sets mode: -o ${targetNick}`,
+            timestamp: new Date()
+        }, currentWindow);
+
+        // Re-render user list
+        UI.renderUserList(users, Config.state.nickname, currentWindow);
+
+        return {
+            success: true,
+            message: null,
+            handled: true
+        };
+    },
+
+    /**
+     * /voice - Give voice status to a user
+     * @param {Array} args - Command arguments
+     */
+    cmdVoice(args) {
+        const currentWindow = window.UI.activeWindow;
+        
+        if (currentWindow === 'Status') {
+            return {
+                success: false,
+                message: 'Cannot voice users in Status window',
+                handled: true
+            };
+        }
+
+        if (args.length === 0) {
+            UI.addErrorMessage('Usage: /voice nickname', currentWindow);
+            return {
+                success: false,
+                message: null,
+                handled: true
+            };
+        }
+
+        // Check if user is op
+        const users = window.App.state.channelUsers[currentWindow] || [];
+        const currentUser = users.find(u => u.nick === Config.state.nickname);
+        
+        if (!currentUser || currentUser.mode !== 'operator') {
+            UI.addErrorMessage('You must be a channel operator to voice users', currentWindow);
+            return {
+                success: false,
+                message: null,
+                handled: true
+            };
+        }
+
+        const targetNick = args[0];
+
+        // Find target user
+        const targetIndex = users.findIndex(u => u.nick === targetNick);
+        if (targetIndex === -1) {
+            UI.addErrorMessage(`No such user: ${targetNick}`, currentWindow);
+            return {
+                success: false,
+                message: null,
+                handled: true
+            };
+        }
+
+        // Apply voice mode (only if not already an operator)
+        if (users[targetIndex].mode !== 'operator') {
+            users[targetIndex].mode = 'voice';
+        }
+
+        // Show mode change message
+        UI.addMessage({
+            type: 'mode',
+            text: `* ${Config.state.nickname} sets mode: +v ${targetNick}`,
+            timestamp: new Date()
+        }, currentWindow);
+
+        // Re-render user list
+        UI.renderUserList(users, Config.state.nickname, currentWindow);
+
+        return {
+            success: true,
+            message: null,
+            handled: true
+        };
+    },
+
+    /**
+     * /clear - Clear the current window's chat
+     * @param {Array} args - Command arguments
+     */
+    cmdClear(args) {
+        const currentWindow = window.UI.activeWindow;
+        
+        // Clear the chat output for current window
+        UI.clearChat(currentWindow);
+
+        return {
+            success: true,
+            message: null,
+            handled: true
+        };
+    },
+
+    /**
      * /server - Change server address
      * @param {Array} args - Command arguments
      */
@@ -631,6 +875,11 @@ const IRCCommands = {
         UI.addSystemMessage(`  /topic [new topic] - View/change channel topic (op only)`, 'Status');
         UI.addSystemMessage(`  /kick nick [reason] - Kick user from channel (op only)`, 'Status');
         UI.addSystemMessage(`  /mode nick +/-o|v - Change user modes (op only)`, 'Status');
+        UI.addSystemMessage(`  /op nick - Give operator status (op only)`, 'Status');
+        UI.addSystemMessage(`  /deop nick - Remove operator status (op only)`, 'Status');
+        UI.addSystemMessage(`  /voice nick - Give voice status (op only)`, 'Status');
+        UI.addSystemMessage(`  /clear - Clear current window`, 'Status');
+        UI.addSystemMessage(`  !op - Request ops from ChanServ`, 'Status');
         UI.addSystemMessage(`  /server [url] - View/change server address`, 'Status');
         UI.addSystemMessage(`  /quit [message] - Disconnect`, 'Status');
         UI.addSystemMessage(`  /help - Show this help`, 'Status');

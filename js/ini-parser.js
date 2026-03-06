@@ -1,6 +1,7 @@
 /**
  * INI Parser - mIRC LLM Simulator
- * Parses INI format configuration files (personas.ini, channels.ini, events.ini)
+ * Parses INI format configuration files (personas.ini, themes.ini)
+ * Note: channels.ini and events.ini are no longer used (dynamic channels + Event Settings UI)
  */
 
 const IniParser = {
@@ -98,52 +99,24 @@ const IniParser = {
 
     /**
      * Load and parse channels.ini file
-     * @param {string} filePath - Path to channels.ini
+     * NOTE: Channels are dynamically managed. Always returns defaults.
+     * @param {string} filePath - Path to channels.ini (unused)
      * @returns {Promise<Object>} Parsed channels configuration
      */
     async loadChannels(filePath = 'settings/channels.ini') {
-        try {
-            const response = await fetch(filePath);
-            if (!response.ok) {
-                // Try .example file if main file not found
-                const exampleResponse = await fetch(filePath + '.example');
-                if (!exampleResponse.ok) {
-                    throw new Error('Channels file not found');
-                }
-                const content = await exampleResponse.text();
-                return this.parse(content);
-            }
-            const content = await response.text();
-            return this.parse(content);
-        } catch (error) {
-            console.error('Error loading channels:', error);
-            return this.getDefaultChannels();
-        }
+        // Channels are fully dynamic - just return defaults without file access
+        return this.getDefaultChannels();
     },
 
     /**
      * Load and parse events.ini file
-     * @param {string} filePath - Path to events.ini
+     * NOTE: Events are configured via Event Settings UI. Always returns defaults.
+     * @param {string} filePath - Path to events.ini (unused)
      * @returns {Promise<Object>} Parsed events configuration
      */
     async loadEvents(filePath = 'settings/events.ini') {
-        try {
-            const response = await fetch(filePath);
-            if (!response.ok) {
-                // Try .example file if main file not found
-                const exampleResponse = await fetch(filePath + '.example');
-                if (!exampleResponse.ok) {
-                    throw new Error('Events file not found');
-                }
-                const content = await exampleResponse.text();
-                return this.parse(content);
-            }
-            const content = await response.text();
-            return this.parse(content);
-        } catch (error) {
-            console.error('Error loading events:', error);
-            return this.getDefaultEvents();
-        }
+        // Events are managed by Event Settings UI - just return defaults without file access
+        return this.getDefaultEvents();
     },
 
     /**
@@ -193,13 +166,20 @@ const IniParser = {
 
     /**
      * Get default events if file loading fails
+     * Returns "Normal" preset settings (event presets now defined in event-settings-ui.js)
      * @returns {Object} Default events configuration
      */
     getDefaultEvents() {
         return {
-            'netsplit': { enabled: true, frequency: 900 },
-            'quit': { enabled: true, frequency: 600 },
-            'join': { enabled: true, frequency: 300 }
+            'join': { enabled: true, frequency: 45, description: 'Lurker joins channel' },
+            'part': { enabled: true, frequency: 60, description: 'Lurker leaves channel' },
+            'quit': { enabled: true, frequency: 90, description: 'User disconnects from server' },
+            'topic_change': { enabled: false, frequency: 180, description: 'Persona changes channel topic' },
+            'kick': { enabled: false, frequency: 240, description: 'Persona kicks another user' },
+            'mode': { enabled: true, frequency: 120, description: 'Operator changes user modes (+o, +v, etc)' },
+            'netsplit': { enabled: true, frequency: 300, description: 'Network split event (5-15 users disconnect)' },
+            'kline': { enabled: false, frequency: 600, description: 'Server ban announcement' },
+            'idle_chatter': { enabled: true, frequency: 20, description: 'Active personas send random messages' }
         };
     },
 

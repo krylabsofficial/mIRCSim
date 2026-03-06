@@ -7,9 +7,12 @@ This directory contains INI configuration files for the mIRC Simulator. All file
 | File | Purpose | Required | Editable |
 |------|---------|----------|----------|
 | `README.md` | This configuration guide | ℹ️ Docs | Read-only |
-| `personas.ini` | AI character definitions | ✅ Yes | ✏️ Customize freely |
+| `personas.ini` | AI character definitions + lurker pool | ✅ Yes | ✏️ Customize freely |
 | `themes.ini` | Color theme definitions | ✅ Yes | ✏️ Add custom themes |
-| `events.ini` | Event simulation settings | ✅ Yes | ✏️ Adjust intervals |
+
+**Event Configuration:** Events are now managed through the **Event Settings UI** (⚙️ button in toolbar) with preset system (Chaotic/Normal/Chill/Custom). Lurker names are loaded from the `[lurkers]` section in `personas.ini`.
+
+**Channel Configuration:** Channels are **dynamically generated** - join ANY channel with `/join #channelname`. No configuration file needed!
 
 **Note:** All `.ini` files are committed to git as working defaults. You can modify them directly - no need for `.example` templates.
 
@@ -89,6 +92,23 @@ style = Philosophical hacker questioning reality, references The Matrix, brief r
 21. PacketSurfer - Network specialist
 22. SilentGh0st - Lurker with rare insights
 23. ByteSmith - Retro hardware hacker
+
+### [lurkers] Section
+
+This file also contains a **`[lurkers]`** section at the end with a comma-separated list of 180+ background user names:
+
+```ini
+[lurkers]
+names = BackgroundUser1,BackgroundUser2,BackgroundUser3,...
+```
+
+**Purpose:**
+- Populate channels with realistic user counts
+- Used in join/quit/part/mode/netsplit events
+- Never send chat messages (silent presence)
+- NOT AI personas (just names for background activity)
+
+**Event Configuration:** Event timing and behavior is controlled via the **Event Settings UI** (🎛️ button in toolbar), which offers presets (Chaotic/Normal/Chill/Custom) instead of manual INI editing.
 
 ### Deprecated Fields
 
@@ -210,99 +230,14 @@ Themes are saved to `localStorage` with key `mirc_theme` and persist across brow
 
 ---
 
-## ⚡ events.ini
-
-Controls background IRC activity simulation.
-
-### Format
-
-```ini
-[lurkers]
-names = Name1,Name2,Name3,...
-
-[events]
-join_interval_min = milliseconds
-join_interval_max = milliseconds
-quit_interval_min = milliseconds
-quit_interval_max = milliseconds
-part_interval_min = milliseconds
-part_interval_max = milliseconds
-mode_interval_min = milliseconds
-mode_interval_max = milliseconds
-netsplit_interval_min = milliseconds
-netsplit_interval_max = milliseconds
-chat_interval_min = milliseconds
-chat_interval_max = milliseconds
-```
-
-### [lurkers] Section
-
-**`names`** - Comma-separated list of background user names (200+ recommended)
-
-These users:
-- Populate channels automatically (not active personas)
-- Participate in join/part/quit events
-- Never send chat messages
-- Add realism to IRC channels
-
-### [events] Section
-
-Each event has `min` and `max` interval values (milliseconds). System randomly schedules events within these ranges.
-
-**Event Types:**
-
-| Event | Triggers | Color | Notes |
-|-------|----------|-------|-------|
-| `join` | User joins channel | Green (#009900) | Random lurker |
-| `quit` | User disconnects | Dark blue (#000066) | Removed from all channels |
-| `part` | User leaves channel | Brown (#8b4513) | Optional part message |
-| `mode` | Op/voice granted | Green (#009900) | Only by operators or ChanServ |
-| `netsplit` | Server split | Brown (#8b4513) | Multi-user, delayed rejoin |
-| `chat` | Lurker speaks | Default | NOT IMPLEMENTED (reserved) |
-
-### Default Values
-
-```ini
-[events]
-join_interval_min = 15000    # 15 seconds
-join_interval_max = 45000    # 45 seconds
-quit_interval_min = 30000    # 30 seconds
-quit_interval_max = 90000    # 1.5 minutes
-part_interval_min = 25000    # 25 seconds
-part_interval_max = 75000    # 1.25 minutes
-mode_interval_min = 60000    # 1 minute
-mode_interval_max = 180000   # 3 minutes
-netsplit_interval_min = 300000   # 5 minutes
-netsplit_interval_max = 900000   # 15 minutes
-```
-
-### Event Behavior
-
-- **Multi-Channel:** Events distribute randomly across ALL open channels
-- **Excludes Main User:** Events never target the main user (Config.state.nickname)
-- **Operator Restrictions:** Mode changes only performed by operators (@) or ChanServ
-- **Netsplit Logic:** 
-  - Splits 2-5 random users
-  - Shows server names (e.g., "nova.ca.us.dal.net irc.stealth.net")
-  - Users rejoin after 10-30 second delay
-  - Original modes restored on rejoin
-
-### Permission System
-
-- **Ops (@):** Can perform mode changes, kicks, topic changes
-- **ChanServ:** Automated service that grants ops when no other ops available
-- **Regular Users:** Cannot perform mode changes (filtered out in event simulator)
-
----
-
 ## 🔧 Troubleshooting
 
 ### INI Format Issues
 
 **Symptoms:**
 - "Loaded 0 personas" in console
+- "Loaded 0 lurker names" in console
 - Themes not applying
-- Events not firing
 
 **Common Mistakes:**
 ```ini
@@ -330,10 +265,10 @@ nickname = ZeroCool
 
 Check browser console (F12) on page load:
 ```
-✅ Loaded 23 personas from personas.ini
+✅ Loaded 24 personas from personas.ini
+✅ Loaded 180+ lurker names from personas.ini [lurkers] section
 ✅ Loaded 4 themes from themes.ini
 ✅ Applied theme: classic
-✅ Loaded 200 lurker names from events.ini
 ```
 
 ### File Paths
@@ -343,9 +278,8 @@ All config files must be in `settings/` directory relative to `index.html`:
 mIRCSim/
 ├── index.html
 └── settings/
-    ├── personas.ini  ← Here
-    ├── themes.ini    ← Here
-    └── events.ini    ← Here
+    ├── personas.ini  ← Here (includes [lurkers] section)
+    └── themes.ini    ← Here
 ```
 
 ### Testing Changes

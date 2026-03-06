@@ -52,6 +52,11 @@ const App = {
             this.handleDemoMode();
         });
 
+        // Disconnect button
+        UI.elements.disconnectButton.addEventListener('click', () => {
+            this.handleDisconnect();
+        });
+
         // Enter key in inputs
         UI.elements.serverInput.addEventListener('keypress', async (e) => {
             if (e.key === 'Enter') await this.handleConnect();
@@ -144,6 +149,56 @@ const App = {
     },
 
     /**
+     * Handle disconnect
+     */
+    handleDisconnect() {
+        console.log('Disconnecting...');
+
+        // Stop event simulator
+        if (EventSimulator && EventSimulator.stopAllEvents) {
+            EventSimulator.stopAllEvents();
+        }
+
+        // Clear all windows except Status
+        const workspace = UI.elements.mdiWorkspace;
+        const windows = workspace.querySelectorAll('.mdi-window');
+        windows.forEach(win => {
+            if (win.dataset.window !== 'Status') {
+                win.remove();
+            }
+        });
+
+        // Clear switchbar buttons except Status
+        const switchbar = UI.elements.switchbar;
+        const buttons = switchbar.querySelectorAll('.switch-btn');
+        buttons.forEach(btn => {
+            if (btn.dataset.window !== 'Status') {
+                btn.remove();
+            }
+        });
+
+        // Reset message history
+        UI.messageHistory = { 'Status': UI.messageHistory['Status'] || [] };
+
+        // Reset state
+        this.state.connected = false;
+        this.state.currentChannel = null;
+        this.state.channelUsers = {};
+        this.state.conversationHistory = [];
+
+        // Reset config
+        Config.setConnected(false);
+
+        // Hide demo banner
+        UI.hideDemoBanner();
+
+        // Show connection dialog
+        UI.showConnectionDialog();
+
+        console.log('Disconnected');
+    },
+
+    /**
      * Start IRC session
      */
     startSession() {
@@ -199,6 +254,7 @@ const App = {
         UI.addSystemMessage('  /help     - Show available commands', 'Status');
         UI.addSystemMessage('  /list     - List popular channels', 'Status');
         UI.addSystemMessage('  /join #ch - Join any channel', 'Status');
+        UI.addSystemMessage('  !op       - Request operator status', 'Status');
         UI.addSystemMessage('', 'Status');
         UI.addSystemMessage('Have fun and enjoy the nostalgic vibes!', 'Status');
         UI.addSystemMessage('==================================================', 'Status');
@@ -206,6 +262,12 @@ const App = {
         // Start event simulator for channel activity
         console.log('[STARTUP] Initializing EventSimulator...');
         EventSimulator.init();
+
+        // Initialize event settings UI
+        console.log('[STARTUP] Initializing EventSettingsUI...');
+        if (window.EventSettingsUI) {
+            EventSettingsUI.init();
+        }
 
         this.state.connected = true;
     },
@@ -283,22 +345,17 @@ const App = {
         // Calculate lurker count (total - user - active personas)
         const lurkerCount = totalUsers - 1 - activePersonas.length;
         
-        // Generate lurker usernames from events.ini pool if available
+        // Generate lurker usernames from personas.ini lurker pool if available
         let lurkerNames = [];
-        if (Config.events && Config.events.lurker_names && Config.events.lurker_names.names) {
-            // INI parser already converts comma-separated values to arrays
-            const lurkerPool = Array.isArray(Config.events.lurker_names.names) 
-                ? Config.events.lurker_names.names 
-                : Config.events.lurker_names.names.split(',').map(name => name.trim());
-            
-            // Filter out empty names
-            const validPool = lurkerPool.filter(name => name && name.length > 0);
+        if (Config.lurkers && Config.lurkers.length > 0) {
+            // Lurkers are already parsed as an array by INI parser
+            const validPool = Config.lurkers.filter(name => name && name.length > 0);
             
             // Shuffle and select random lurkers from pool
             const shuffled = [...validPool].sort(() => Math.random() - 0.5);
             lurkerNames = shuffled.slice(0, lurkerCount);
             
-            console.log(`[JOIN] Using ${lurkerNames.length} lurkers from events.ini pool (${validPool.length} total)`);
+            console.log(`[JOIN] Using ${lurkerNames.length} lurkers from personas.ini pool (${validPool.length} total)`);
         } else {
             // Fallback to UsernameGenerator
             UsernameGenerator.reset();
@@ -396,6 +453,11 @@ const App = {
                 this.generateDemoGreeting(activePersonas, channelName);
             }, Utils.randomInt(1000, 2000));
         }
+
+        // Start per-channel events
+        if (window.EventSimulator) {
+            EventSimulator.startChannelEvents(channelName);
+        }
     },
 
     /**
@@ -421,6 +483,11 @@ const App = {
         // Update current channel if this was the active one
         if (this.state.currentChannel === channelName) {
             this.state.currentChannel = null;
+        }
+
+        // Stop per-channel events
+        if (window.EventSimulator) {
+            EventSimulator.stopChannelEvents(channelName);
         }
     },
 
@@ -488,7 +555,39 @@ const App = {
      * Handle user message
      * @param {string} message - User's message
      */
-    async handleUserMessage(message) {
+    async handleUserMessage(message) {        // Check for !op or !Op command (ChanServ op request)
+        if (message.toLowerCase() === '!op') {
+            const currentWindow = UI.activeWindow;
+            
+            // Can only use !op in channels
+            if (currentWindow === 'Status') {
+                UI.addErrorMessage('Cannot request ops in Status window', 'Status');
+                return;
+            }
+
+            // Get current user
+            const users = this.state.channelUsers[currentWindow] || [];
+            const currentUser = users.find(u => u.nick === Config.state.nickname);
+            
+            if (!currentUser) {
+                UI.addErrorMessage('You are not in this channel', currentWindow);
+                return;
+            }
+
+            // Give the user ops
+            currentUser.mode = 'operator';
+
+            // Show ChanServ mode change message
+            UI.addMessage({
+                type: 'mode',
+                text: `* ChanServ sets mode: +o ${Config.state.nickname}`,
+                timestamp: new Date()
+            }, currentWindow);
+
+            // Re-render user list
+            UI.renderUserList(users, Config.state.nickname, currentWindow);
+            return;
+        }
         // Check if it's a command
         const cmdResult = IRCCommands.execute(message);
         

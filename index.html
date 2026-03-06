@@ -7,7 +7,7 @@
     <meta name="description" content="Local mIRC-style chat simulator powered by LLM personas">
     <meta name="author" content="mIRCvibes">
     <title>mIRC - LLM Chat Simulator</title>
-    <link rel="stylesheet" href="css/styles.css?v=13">
+    <link rel="stylesheet" href="css/styles.css?v=20260305003">
 </head>
 <body>
     <!-- Demo Mode Banner -->
@@ -66,17 +66,17 @@
         <!-- Toolbar -->
         <div class="toolbar">
             <div class="toolbar-group">
-                <button class="toolbar-btn" title="Connect">🔌</button>
-                <button class="toolbar-btn" title="Options">⚙️</button>
+                <button id="btn-disconnect" class="toolbar-btn" title="Disconnect">⚡</button>
+                <button id="btn-event-settings" class="toolbar-btn" title="Event Settings">🎛️</button>
                 <button class="toolbar-btn" title="Channels">📋</button>
                 <button class="toolbar-btn" title="Notify">🔔</button>
                 <button class="toolbar-btn" title="Favorites">⭐</button>
             </div>
             <div class="toolbar-separator"></div>
             <div class="toolbar-group">
-                <button class="toolbar-btn" title="Minimize All">📊</button>
-                <button class="toolbar-btn" title="Cascade">🪟</button>
-                <button class="toolbar-btn" title="Tile">📐</button>
+                <button id="btn-minimize-all" class="toolbar-btn" title="Minimize All">🔽</button>
+                <button id="btn-cascade" class="toolbar-btn" title="Cascade Windows">⤵️</button>
+                <button id="btn-tile" class="toolbar-btn" title="Tile Windows">🔠</button>
             </div>
             <div class="toolbar-status">
                 <span id="status-icon" class="status-icon connected"></span>
@@ -137,17 +137,55 @@
         </div>
     </div>
 
+    <!-- Event Settings Modal -->
+    <div id="event-settings-modal" class="event-modal">
+        <div class="event-modal-content">
+            <div class="window-titlebar">
+                <span class="window-icon">⚙</span>
+                <span class="window-title">Event Settings</span>
+                <div class="window-controls">
+                    <button id="minimize-settings-modal" class="window-btn minimize-btn" title="Minimize">_</button>
+                    <button id="close-settings-modal" class="window-btn close-btn" title="Close">×</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="event-section" style="margin-bottom: 16px;">
+                    <label for="preset-selector" style="font-family: 'MS Sans Serif', 'Tahoma', sans-serif; font-size: 12px; font-weight: bold; display: block; margin-bottom: 6px;">Activity Preset:</label>
+                    <select id="preset-selector" style="width: 100%; padding: 4px; font-family: 'MS Sans Serif', 'Tahoma', sans-serif; font-size: 12px; background: white; border: 2px inset #808080;">
+                        <option value="chaotic">Chaotic - Fast-paced, high activity</option>
+                        <option value="normal" selected>Normal - Balanced activity</option>
+                        <option value="chill">Chill - Relaxed, minimal activity</option>
+                        <option value="custom">Custom - User-defined settings</option>
+                    </select>
+                </div>
+                <div class="event-section">
+                    <h3>Global Events</h3>
+                    <div id="global-events-list" class="event-list"></div>
+                </div>
+                <div class="event-section">
+                    <h3>Channel Events</h3>
+                    <div id="channel-events-list" class="event-list"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="save-event-settings" class="modal-action-btn">Save</button>
+                <button id="cancel-event-settings" class="modal-action-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- JavaScript Modules -->
     <script src="js/utils.js"></script>
     <script src="js/username-generator.js"></script>
     <script src="js/topic-generator.js"></script>
     <script src="js/ini-parser.js"></script>
-    <script src="js/config.js?v=13"></script></script>
+    <script src="js/config.js?v=14"></script>
     <script src="js/demo.js"></script>
     <script src="js/llm-client.js?v=6"></script>
-    <script src="js/ui.js?v=13"></script></script>
-    <script src="js/irc-commands.js"></script>
-    <script src="js/event-simulator.js?v=6"></script>
-    <script src="js/app.js?v=12"></script>
+    <script src="js/ui.js?v=55"></script>
+    <script src="js/irc-commands.js?v=3"></script>
+    <script src="js/event-simulator.js?v=7"></script>
+    <script src="js/app.js?v=15"></script>
+    <script src="js/event-settings-ui.js?v=16"></script>
 </body>
 </html>

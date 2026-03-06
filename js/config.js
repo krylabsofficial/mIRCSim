@@ -19,6 +19,7 @@ const Config = {
     channels: {},
     events: {},
     themes: {},
+    lurkers: [],  // Non-AI usernames for channel population
     currentTheme: 'classic',
 
     // Storage keys
@@ -99,6 +100,12 @@ const Config = {
                 IniParser.loadThemes()
             ]);
 
+            // Extract lurkers from personas (if present)
+            this.lurkers = personas.lurkers?.names || [];
+            
+            // Remove lurkers section from personas object
+            delete personas.lurkers;
+            
             this.personas = personas;
             this.channels = channels;
             this.events = events;
@@ -108,7 +115,8 @@ const Config = {
                 personas: Object.keys(personas).length,
                 channels: Object.keys(channels).length,
                 events: Object.keys(events).length,
-                themes: Object.keys(themes).length
+                themes: Object.keys(themes).length,
+                lurkers: this.lurkers.length
             });
             
             // Apply saved theme
