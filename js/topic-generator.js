@@ -217,6 +217,135 @@ const TopicGenerator = {
         
         // Default
         return `Discussion about ${cleanName}, stay on topic, be respectful`;
+    },
+
+    /**
+     * Generate LLM-based topic for channel (90s IRC operator style)
+     * @param {string} channelName - Channel name
+     * @param {string} keywordTopic - Fallback keyword-based topic
+     * @returns {Promise<string>} LLM-generated topic
+     */
+    async generateLLMTopic(channelName, keywordTopic) {
+        const cleanName = channelName.replace('#', '');
+        
+        // Check cache first
+        const cached = this.getTopicFromCache(channelName);
+        if (cached) {
+            console.log(`[TopicGen] Using cached topic for ${channelName}`);
+            return cached;
+        }
+
+        console.log(`[TopicGen] Generating LLM topic for ${channelName}`);
+
+        // Build 90s IRC operator prompt
+        const systemPrompt = this.buildTopicPrompt(channelName, keywordTopic);
+        
+        const messages = [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `Set the topic for ${channelName}` }
+        ];
+
+        try {
+            // Use LLMClient's request method directly
+            const payload = {
+                messages: messages,
+                temperature: 0.9,  // Higher temp for creative topics
+                max_tokens: 80,    // Topics should be short
+                top_p: 0.85,
+                stream: false
+            };
+
+            const url = `${LLMClient.config.proxyUrl}/chat`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(payload),
+                signal: AbortSignal.timeout(10000)  // 10s timeout for topics
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            let topic = data.choices?.[0]?.message?.content?.trim();
+
+            if (!topic || topic.length > 150) {
+                console.warn('[TopicGen] Invalid LLM topic, using keyword fallback');
+                return keywordTopic;
+            }
+
+            // Clean up any remaining reasoning artifacts
+            topic = topic.replace(/^(Thinking Process:|Analysis:|Step \d+:)/gi, '').trim();
+            
+            // Cache the generated topic
+            this.saveTopicToCache(channelName, topic);
+            
+            return topic;
+        } catch (error) {
+            console.error('[TopicGen] LLM generation failed:', error);
+            return keywordTopic;  // Fall back to keyword topic
+        }
+    },
+
+    /**
+     * Build prompt for LLM topic generation (90s IRC operator style)
+     */
+    buildTopicPrompt(channelName, keywordTopic) {
+        return `You are a 90s IRC channel operator setting the topic for ${channelName}.
+
+TEMPORAL CONTEXT - IT IS 1998-2000:
+- NO modern references: Google, Wikipedia, YouTube, Spotify, iTunes, Netflix, social media, smartphones, streaming services
+- YES to 90s tech: Napster, mp3s, warez, IRC, mIRC, AOL, ICQ, BBS, FTP, dial-up, CD-Rs
+- Music: mp3 trading, Napster/AudioGalaxy, CD burning, NOT streaming
+- Software: warez, cracks, keygens, scene releases
+- Search: AltaVista, Yahoo, Lycos, NOT Google
+
+TOPIC STYLE - 90s IRC OPERATOR:
+- Under 80 characters total
+- Edgy, cryptic, personality-driven
+- Use light 1337speak sparingly (h4x0r, 31337, r00t, etc)
+- Include channel vibe/rules with | separators
+- Reference the channel theme: ${keywordTopic}
+- NO corporate speak, NO modern language
+- Use 90s slang: "n00b", "lamer", "elite", "warez", "420"
+
+EXAMPLES:
+#hackers: "elite h4x0rs only | r00t or GTFO | no script kiddies"
+#warez: "got mp3s & cracks? | ratio gods welcome | no leechers"
+#python: "code warriors | share ur scripts | n00bs ask in #help"
+#gaming: "quake 2 deathmatch | console vs pc wars | no camping"
+#random: "anything goes | be cool or be /kick'd | no spam"
+
+Create ONE topic line for ${channelName} (under 80 chars, 90s IRC operator style):`;
+    },
+
+    /**
+     * Get topic from localStorage cache
+     */
+    getTopicFromCache(channelName) {
+        try {
+            const cache = JSON.parse(localStorage.getItem('mirc_llm_topics') || '{}');
+            return cache[channelName] || null;
+        } catch (error) {
+            return null;
+        }
+    },
+
+    /**
+     * Save topic to localStorage cache
+     */
+    saveTopicToCache(channelName, topic) {
+        try {
+            const cache = JSON.parse(localStorage.getItem('mirc_llm_topics') || '{}');
+            cache[channelName] = topic;
+            localStorage.setItem('mirc_llm_topics', JSON.stringify(cache));
+        } catch (error) {
+            console.error('[TopicGen] Failed to cache topic:', error);
+        }
     }
 };
 

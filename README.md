@@ -432,6 +432,58 @@ If the main user receives operator status (@) when joining, ChanServ sends a wel
 - ✅ Copy from `settings/themes.ini.example` if missing
 - ✅ Verify INI format with sections like `[classic]`, `[dark]`
 
+### LLM/Model Issues
+
+**Reasoning model outputting "Thinking Process:" or analysis steps**
+
+**Symptoms:**
+- Personas respond with numbered steps: "1. Analyze the request..." "2. Determine response..."
+- Long verbose responses instead of short IRC chat
+- Messages like "Thinking Process:", "Analysis:", "**Goal:**"
+- Or personas just respond with generic fallbacks ("hey", "sup") repeatedly
+
+**Cause:**
+Some models are trained to output chain-of-thought reasoning. This is INCOMPATIBLE with IRC chat simulation.
+
+**Incompatible models:**
+- ❌ QwQ-32B (dedicated reasoning model)
+- ❌ Qwen3.5 "Reasoning" or "Aggressive" fine-tunes
+- ❌ DeepSeek-R1 (reasoning variant)
+- ❌ Any model with "reasoning", "think", "CoT" in the name
+- ❌ Community fine-tunes labeled "verbose" or "analytical"
+
+**Recommended models (tested & working):**
+- ✅ **Llama 3.1 (8B/70B Instruct)** - excellent for IRC chat
+- ✅ **Llama 3.3 (70B Instruct)** - newest, very good
+- ✅ **Gemma 2 (9B/27B Instruct)** - fast and concise
+- ✅ **Qwen2.5 (7B/14B/32B Instruct)** - official base models (NOT community fine-tunes)
+- ✅ **Mistral 7B v0.3 Instruct** - classic reliable choice
+- ✅ **Mistral Nemo 12B Instruct** - good balance
+
+**How to identify reasoning models:**
+1. Check model name/description for "reasoning", "thinking", "CoT"
+2. Test in LM Studio chat: ask "hello" - if it responds with analysis steps, it's a reasoning model
+3. Check browser console (F12) - look for warnings about reasoning artifacts
+
+**Solution:**
+Switch to a recommended model from the list above. The app includes reasoning detection and will show generic fallbacks, but you won't get quality persona responses.
+
+**Personas not responding or very slow responses**
+
+- ✅ Check LM Studio is running and model is loaded
+- ✅ Test connection via connection screen before joining channels
+- ✅ Check CORS proxy is running: `python cors_proxy.py`
+- ✅ Verify LM Studio using port 1234 (default)
+- ✅ Check network tab in browser dev tools for failed requests
+- ✅ Some models are slow - 4B models generate faster than 70B
+
+**Responses are too formal or long**
+
+- ✅ This is normal with some models - they ignore "brief" instructions
+- ✅ Try increasing temperature in code (edit `llm-client.js`)
+- ✅ Llama 3.1/3.3 and Gemma 2 are best at following brevity instructions
+- ✅ Older/smaller models may not follow style rules well
+
 ### Browser-Specific Issues
 
 **File:// protocol issues (opening index.html directly)**

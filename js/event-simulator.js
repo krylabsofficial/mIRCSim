@@ -429,23 +429,38 @@ const EventSimulator = {
     /**
      * Simulate topic change
      */
-    simulateTopicChange(targetChannel) {
+    async simulateTopicChange(targetChannel) {
         if (!targetChannel) return;
 
         const activePersonas = window.App.state.activePersonas && window.App.state.activePersonas[targetChannel];
         if (!activePersonas || activePersonas.length === 0) return;
 
-        const persona = Utils.randomChoice(activePersonas);
-        const topic = TopicGenerator.generateTopic(targetChannel);
+        // Only operators can change topics - filter for ops only
+        const users = window.App.state.channelUsers[targetChannel];
+        const ops = users ? users.filter(u => u.mode === '@') : [];
+        let topicChanger;
+        
+        if (ops.length > 0) {
+            // Pick random op
+            topicChanger = Utils.randomChoice(ops).nickname;
+        } else {
+            // No ops in channel - use ChanServ
+            topicChanger = 'ChanServ';
+        }
+
+        // Get keyword topic as fallback
+        const keywordTopic = TopicGenerator.generateTopic(targetChannel);
+        
+        // Generate LLM topic (or get from cache, or fallback to keyword)
+        const topic = await TopicGenerator.generateLLMTopic(targetChannel, keywordTopic);
 
         UI.addMessage({
-            type: 'system',
-            text: `* ${persona.nickname} has changed the topic to: ${topic}`,
+            type: 'topic',
+            text: `* ${topicChanger} changes topic to "${topic}"`,
             timestamp: new Date()
         }, targetChannel);
 
         // Update window title
-        const users = window.App.state.channelUsers[targetChannel];
         if (users) {
             UI.updateChannelTitle(targetChannel, users.length, topic);
         }

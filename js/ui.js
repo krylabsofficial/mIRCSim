@@ -906,7 +906,8 @@ const UI = {
             'action': getComputedStyle(root).getPropertyValue('--action-color').trim() || '#663399',
             'system': getComputedStyle(root).getPropertyValue('--system-color').trim() || '#008000',
             'error': getComputedStyle(root).getPropertyValue('--error-color').trim() || '#ff0000',
-            'notice': '#ff8c00'     // Orange (not themed yet)
+            'notice': '#ff8c00',    // Orange (not themed yet)
+            'topic': getComputedStyle(root).getPropertyValue('--mode-color').trim() || '#009900'  // Same as mode (operator action)
         };
         
         if (colorMap[message.type]) {

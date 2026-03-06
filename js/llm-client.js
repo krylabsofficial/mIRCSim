@@ -96,7 +96,7 @@ const LLMClient = {
     },
 
     /**
-     * Build layered system prompt: persona + topic + IRC rules
+     * Build layered system prompt: persona + era context + topic + IRC rules
      * @param {Object} persona - Persona configuration
      * @param {string} topicTheme - Topic/theme hint
      * @param {string} channelName - Channel name
@@ -117,14 +117,31 @@ const LLMClient = {
         prompt += `CHARACTER:\n`;
         prompt += `${persona.style}\n\n`;
         
-        // Layer 2: Channel Topic/Theme
+        // Layer 2: Temporal Context (90s Era Constraints)
+        prompt += `TEMPORAL CONTEXT - IT IS 1998-2000:\n`;
+        prompt += `- NO references to: Google (use "search engine" or "AltaVista/Yahoo"), Wikipedia, YouTube, Amazon, social media, smartphones, Facebook, Instagram, Netflix, Spotify, iTunes, streaming\n`;
+        prompt += `- NO modern slang: "yeet", "stan", "vibe check", "cap", "based", "cringe" (as adjective)\n`;
+        prompt += `- YES to 90s references: AOL, ICQ, mIRC, Napster, mp3s, warez, IRC bots, dial-up, BBS, pagers, CD-Rs\n`;
+        prompt += `- Music sharing: people trade mp3s, use Napster/Kazaa/AudioGalaxy, burn CDs, not "support artists on Spotify"\n`;
+        prompt += `- Software: people crack software, share warez, use keygens - this is normal IRC culture\n`;
+        prompt += `- Information searching: "check AltaVista", "search Yahoo", "look it up on a search engine"\n`;
+        prompt += `- Communication: email, ICQ, pager, phone calls - NO texting, NO social media DMs\n\n`;
+        
+        // Layer 3: Channel Topic/Theme
         if (topicTheme) {
             prompt += `CHANNEL CONTEXT:\n`;
             prompt += `${topicTheme}\n\n`;
         }
         
-        // Layer 3: IRC Style Rules (CRITICAL)
+        // Layer 4: IRC Style Rules (CRITICAL)
         prompt += `IRC STYLE RULES (MUST FOLLOW):\n`;
+        prompt += `CRITICAL - NO REASONING OUTPUT:\n`;
+        prompt += `- DO NOT show thinking process, analysis, or reasoning steps\n`;
+        prompt += `- DO NOT output numbered lists or meta-commentary\n`;
+        prompt += `- DO NOT write "Thinking Process:" or "Analysis:" or similar\n`;
+        prompt += `- Respond IMMEDIATELY and DIRECTLY like you're typing in live chat\n`;
+        prompt += `- ONLY output what ${persona.nickname} would actually type in IRC\n\n`;
+        prompt += `RESPONSE FORMAT:\n`;
         prompt += `- Keep responses SHORT: 5-15 words typical, max 2-3 short sentences\n`;
         prompt += `- Use casual IRC language from 1990s-2000s era\n`;
         prompt += `- USE LOWERCASE mostly (dont capitalize everything like formal writing)\n`;
@@ -139,7 +156,12 @@ const LLMClient = {
         prompt += `- Don't use greetings unless someone just joined\n`;
         prompt += `- Be conversational and direct\n\n`;
         
-        prompt += `Respond as ${persona.nickname} would, keeping it brief and IRC-style:`;
+        prompt += `Remember: You ARE ${persona.nickname} typing in IRC RIGHT NOW.\n`;
+        prompt += `Type your response directly. NO thinking, NO planning, NO analysis.\n`;
+        prompt += `Just respond as ${persona.nickname} would in casual IRC chat.\n\n`;
+        
+        // Qwen3.5 specific: disable reasoning mode
+        prompt += `/no_think`;
         
         return prompt;
     },
@@ -216,9 +238,20 @@ const LLMClient = {
 
         const payload = {
             messages: messages,
-            temperature: 0.8,
-            max_tokens: 150,  // Increased for multi-line responses
-            stream: false
+            // Qwen-optimized parameters (work well for most models)
+            temperature: 0.7,
+            top_p: 0.8,
+            top_k: 20,
+            min_p: 0.0,
+            repeat_penalty: 1.0,
+            presence_penalty: 1.5,
+            max_tokens: 150,
+            stream: false,
+            // Experimental flags to disable reasoning (may be ignored by LM Studio)
+            enable_thinking: false,  // Qwen3.5 specific
+            reasoning: false,
+            think: false,
+            mode: "chat"
         };
 
         const response = await fetch(url, {
@@ -240,10 +273,90 @@ const LLMClient = {
 
         // Extract response from OpenAI-compatible format
         if (data.choices && data.choices.length > 0) {
-            return data.choices[0].message.content.trim();
+            let content = data.choices[0].message.content.trim();
+            console.log('[LLM] Raw response:', content);
+            console.log('[LLM] Response length:', content.length);
+            
+            if (!content) {
+                console.warn('[LLM] Empty response received');
+                return 'hey';  // Fallback response
+            }
+            
+            // Post-process: strip reasoning artifacts if present
+            content = this.stripReasoningArtifacts(content);
+            console.log('[LLM] After cleanup:', content);
+            
+            return content;
         }
 
         throw new Error('Invalid response format from LLM');
+    },
+
+    /**
+     * Strip reasoning artifacts from LLM response (for reasoning models like Qwen3.5)
+     * @param {string} content - Raw LLM response
+     * @returns {string} Cleaned response
+     */
+    /**
+     * Strip reasoning artifacts from LLM response
+     * Some models (QwQ, Qwen reasoning variants, DeepSeek-R1) output chain-of-thought
+     * reasoning instead of direct responses. This detects and removes it when possible.
+     * 
+     * NOTE: This is a safety fallback. Reasoning models are fundamentally incompatible.
+     * Use recommended models: Llama 3.1/3.3, Gemma 2, vanilla Qwen2.5 Instruct
+     * 
+     * @param {string} content - Raw LLM response
+     * @returns {string} Cleaned response (or fallback if all reasoning)
+     */
+    stripReasoningArtifacts(content) {
+        // Only strip if we detect OBVIOUS reasoning patterns
+        const obviousReasoningMarkers = [
+            'Thinking Process:',
+            'thinking process:',
+            'Analysis:',
+            '1. **Analyze',
+            '2. **Determine',
+            'Step 1:',
+            'Step 2:'
+        ];
+        
+        // Check if content starts with clear reasoning markers
+        const startsWithReasoning = obviousReasoningMarkers.some(marker => 
+            content.trim().toLowerCase().startsWith(marker.toLowerCase())
+        );
+        
+        if (!startsWithReasoning) {
+            return content;  // Looks normal, return as-is
+        }
+        
+        console.warn('[LLM] Detected reasoning model output, attempting to extract response...');
+        
+        // Try to find a clean short line without reasoning keywords
+        const lines = content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        
+        const reasoningKeywords = ['thinking', 'analysis', 'analyze', 'determine', 'step ', 'goal:', '**'];
+        
+        for (const line of lines) {
+            if (line.length > 5 && line.length < 150) {
+                const hasReasoningKeyword = reasoningKeywords.some(keyword => 
+                    line.toLowerCase().includes(keyword)
+                );
+                
+                if (!hasReasoningKeyword && !line.startsWith('*') && !line.startsWith('1.') && !line.startsWith('2.')) {
+                    console.log('[LLM] Extracted clean line:', line);
+                    return line;
+                }
+            }
+        }
+        
+        // Unable to extract anything clean - return fallback
+        console.error('[LLM] REASONING MODEL DETECTED - This model is incompatible');
+        console.error('[LLM] Switch to: Llama 3.1/3.3, Gemma 2, or vanilla Qwen2.5 Instruct');
+        console.log('[LLM] Reasoning output preview:', content.substring(0, 300) + '...');
+        
+        // Return generic IRC fallback instead of reasoning garbage
+        const fallbacks = ['hey', 'sup', 'yo', 'yeah', 'hm', 'word'];
+        return fallbacks[Math.floor(Math.random() * fallbacks.length)];
     },
 
     /**

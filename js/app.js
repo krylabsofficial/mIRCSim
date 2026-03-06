@@ -458,6 +458,63 @@ const App = {
         if (window.EventSimulator) {
             EventSimulator.startChannelEvents(channelName);
         }
+
+        // Trigger LLM topic upgrade (hybrid approach: show keyword topic first, upgrade later)
+        this.upgradeTopic(channelName, topic, users);
+    },
+
+    /**
+     * Upgrade channel topic from keyword to LLM-generated (hybrid approach)
+     * Simulates an operator changing the topic after join
+     * @param {string} channelName - Channel name
+     * @param {string} keywordTopic - Initial keyword-based topic  
+     * @param {Array} users - Channel user list
+     */
+    async upgradeTopic(channelName, keywordTopic, users) {
+        // Wait 500-1500ms before "changing" topic (feels natural)
+        const delay = Utils.randomInt(500, 1500);
+        
+        setTimeout(async () => {
+            try {
+                // Generate LLM topic (or get from cache)
+                const llmTopic = await TopicGenerator.generateLLMTopic(channelName, keywordTopic);
+                
+                // If same as keyword topic, skip (LLM failed or returned fallback)
+                if (llmTopic === keywordTopic) {
+                    console.log(`[TopicUpgrade] LLM topic same as keyword, skipping for ${channelName}`);
+                    return;
+                }
+
+                // Pick random operator to "set" the topic
+                const ops = users.filter(u => u.mode === '@');
+                let opName;
+                
+                if (ops.length > 0) {
+                    opName = Utils.randomChoice(ops).nickname;
+                } else {
+                    // No ops yet, use ChanServ
+                    opName = 'ChanServ';
+                }
+
+                console.log(`[TopicUpgrade] ${opName} changing topic in ${channelName}`);
+
+                // Show topic change message
+                UI.addMessage({
+                    type: 'topic',
+                    text: `* ${opName} changes topic to "${llmTopic}"`,
+                    timestamp: new Date()
+                }, channelName);
+
+                // Update window title
+                UI.updateChannelTitle(channelName, users.length, llmTopic);
+
+                // Update topic in UI
+                UI.updateTopic(llmTopic);
+
+            } catch (error) {
+                console.error('[TopicUpgrade] Failed:', error);
+            }
+        }, delay);
     },
 
     /**
