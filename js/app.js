@@ -609,6 +609,58 @@ const App = {
     },
 
     /**
+     * Get recent chat messages from a channel for conversation context
+     * @param {string} channelName - Channel name
+     * @param {number} count - Number of recent messages to retrieve (default: 2)
+     * @param {string} excludeNick - Exclude messages from this nickname (to avoid self-reply)
+     * @returns {Array} Array of recent message objects {nick, text, timestamp}
+     */
+    getRecentMessages(channelName, count = 2, excludeNick = null) {
+        if (!this.state.channelMessages) {
+            return [];
+        }
+        
+        const channelMessages = this.state.channelMessages[channelName];
+        if (!channelMessages || channelMessages.length === 0) {
+            return [];
+        }
+
+        // Filter to only chat messages (exclude system events like joins, parts, topics)
+        const chatMessages = channelMessages.filter(msg => {
+            // Only include actual chat messages (type: 'message' or 'normal')
+            if (msg.type !== 'message' && msg.type !== 'normal') {
+                return false;
+            }
+            
+            // Exclude messages from the specified nickname
+            if (excludeNick && msg.nick === excludeNick) {
+                return false;
+            }
+            
+            // Exclude user's own messages
+            if (msg.nick === Config.state.nickname) {
+                return false;
+            }
+            
+            return true;
+        });
+
+        // Get the last N messages
+        const recentMessages = chatMessages.slice(-count);
+
+        // Format for LLM consumption
+        return recentMessages.map(msg => ({
+            nick: msg.nick,
+            text: msg.text,
+            timestamp: msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', { 
+                hour12: false, 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            }) : '00:00'
+        }));
+    },
+
+    /**
      * Handle user message
      * @param {string} message - User's message
      */
@@ -767,12 +819,17 @@ const App = {
                 // Use LLM with topic-aware theme (returns array of lines)
                 const theme = TopicGenerator.getThemeHint(channelName);
 
+                // Get recent conversation context (exclude this persona to avoid self-reply)
+                const messageCount = Math.random() < 0.5 ? 1 : 2;
+                const recentMessages = this.getRecentMessages(channelName, messageCount, persona.nickname);
+
                 responseLines = await LLMClient.generateResponse(
                     persona,
                     userMessage,
                     theme,
                     channelName,
-                    isDirectMention
+                    isDirectMention,
+                    recentMessages.length > 0 ? recentMessages : null
                 );
             }
 

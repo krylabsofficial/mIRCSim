@@ -664,14 +664,33 @@ const EventSimulator = {
             try {
                 const topic = TopicGenerator.getThemeHint(targetChannel);
                 
+                // 70% chance to use recent conversation context, 30% to generate independently
+                const useContext = Math.random() < 0.7;
+                let recentMessages = null;
+                
+                if (useContext) {
+                    // Get last 1-2 chat messages for context (exclude this persona's own messages)
+                    const messageCount = Math.random() < 0.5 ? 1 : 2;
+                    recentMessages = this.getRecentMessages(targetChannel, messageCount, persona.nickname);
+                    
+                    // Only use context if we actually got messages
+                    if (recentMessages.length === 0) {
+                        recentMessages = null;
+                    }
+                }
+                
                 // Create a simple idle chatter prompt (no user message)
-                const idlePrompt = `Say something brief and casual about ${topic}. Keep it very short (5-10 words). Just idle chatter, no questions.`;
+                const idlePrompt = recentMessages 
+                    ? `Based on what was just said, respond naturally or build on the conversation. Keep it very short (5-15 words).`
+                    : `Say something brief and casual about ${topic}. Keep it very short (5-10 words). Just idle chatter, no questions.`;
                 
                 const responseLines = await LLMClient.generateResponse(
                     persona,
                     idlePrompt,
                     topic,
-                    targetChannel
+                    targetChannel,
+                    false, // not a direct mention
+                    recentMessages // pass recent conversation context
                 );
                 
                 if (responseLines && responseLines.length > 0) {
@@ -705,6 +724,53 @@ const EventSimulator = {
                 }, targetChannel);
             }
         }
+    },
+
+    /**
+     * Get recent chat messages from a channel for context
+     * @param {string} channelName - Channel name
+     * @param {number} count - Number of recent messages to retrieve (default: 2)
+     * @param {string} excludeNick - Exclude messages from this nickname (to avoid self-reply)
+     * @returns {Array} Array of recent message objects {nick, text, timestamp}
+     */
+    getRecentMessages(channelName, count = 2, excludeNick = null) {
+        if (!window.App || !window.App.state.channelMessages) {
+            return [];
+        }
+
+        const channelMessages = window.App.state.channelMessages[channelName];
+        if (!channelMessages || channelMessages.length === 0) {
+            return [];
+        }
+
+        // Filter to only chat messages (exclude system events like joins, parts, topics)
+        const chatMessages = channelMessages.filter(msg => {
+            // Only include actual chat messages (type: 'message' or 'normal')
+            if (msg.type !== 'message' && msg.type !== 'normal') {
+                return false;
+            }
+            
+            // Exclude messages from the specified nickname
+            if (excludeNick && msg.nick === excludeNick) {
+                return false;
+            }
+            
+            return true;
+        });
+
+        // Get the last N messages
+        const recentMessages = chatMessages.slice(-count);
+
+        // Format for LLM consumption
+        return recentMessages.map(msg => ({
+            nick: msg.nick,
+            text: msg.text,
+            timestamp: msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', { 
+                hour12: false, 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            }) : '00:00'
+        }));
     },
 
     /**

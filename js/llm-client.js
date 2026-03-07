@@ -64,13 +64,15 @@ const LLMClient = {
      * @param {string} userMessage - User's message
      * @param {string} topicTheme - Topic/theme hint for channel
      * @param {string} channelName - Channel name for history tracking
+     * @param {boolean} isDirectMention - Whether the persona was directly mentioned
+     * @param {Array} recentMessages - Optional recent chat messages for context
      * @returns {Promise<Array<string>>} Array of response lines (for multi-line responses)
      */
-    async generateResponse(persona, userMessage, topicTheme = '', channelName = '', isDirectMention = false) {
-        console.log(`[LLM] Generating response for ${persona.nickname} in ${channelName}${isDirectMention ? ' (directly mentioned)' : ''}`);
+    async generateResponse(persona, userMessage, topicTheme = '', channelName = '', isDirectMention = false, recentMessages = null) {
+        console.log(`[LLM] Generating response for ${persona.nickname} in ${channelName}${isDirectMention ? ' (directly mentioned)' : ''}${recentMessages ? ' (with context)' : ''}`);
         
-        // Build layered system prompt
-        const systemPrompt = this.buildLayeredPrompt(persona, topicTheme, channelName, isDirectMention);
+        // Build layered system prompt with optional conversation context
+        const systemPrompt = this.buildLayeredPrompt(persona, topicTheme, channelName, isDirectMention, recentMessages);
 
         // Get conversation history for this persona in this channel
         const history = this.getHistory(persona.nickname, channelName);
@@ -101,9 +103,10 @@ const LLMClient = {
      * @param {string} topicTheme - Topic/theme hint
      * @param {string} channelName - Channel name
      * @param {boolean} isDirectMention - Whether the persona was directly mentioned
+     * @param {Array} recentMessages - Optional recent chat messages for context
      * @returns {string} Complete system prompt
      */
-    buildLayeredPrompt(persona, topicTheme, channelName, isDirectMention = false) {
+    buildLayeredPrompt(persona, topicTheme, channelName, isDirectMention = false, recentMessages = null) {
         const cleanChannelName = channelName.replace('#', '');
         
         let prompt = `You are ${persona.nickname} in IRC channel ${channelName}.\n\n`;
@@ -126,6 +129,16 @@ const LLMClient = {
         prompt += `- Software: people crack software, share warez, use keygens - this is normal IRC culture\n`;
         prompt += `- Information searching: "check AltaVista", "search Yahoo", "look it up on a search engine"\n`;
         prompt += `- Communication: email, ICQ, pager, phone calls - NO texting, NO social media DMs\n\n`;
+        
+        // Layer 2.5: Recent Conversation (if provided)
+        if (recentMessages && recentMessages.length > 0) {
+            prompt += `RECENT CONVERSATION:\n`;
+            prompt += `Here's what was just said in the channel:\n`;
+            for (const msg of recentMessages) {
+                prompt += `[${msg.timestamp}] <${msg.nick}> ${msg.text}\n`;
+            }
+            prompt += `You can respond to this, build on it, or just acknowledge the vibe.\n\n`;
+        }
         
         // Layer 3: Channel Topic/Theme
         if (topicTheme) {
@@ -284,6 +297,10 @@ const LLMClient = {
             
             // Post-process: strip reasoning artifacts if present
             content = this.stripReasoningArtifacts(content);
+            
+            // Post-process: strip modern emojis (keep ASCII emoticons like :) and ;-))
+            content = this.stripModernEmojis(content);
+            
             console.log('[LLM] After cleanup:', content);
             
             return content;
@@ -357,6 +374,28 @@ const LLMClient = {
         // Return generic IRC fallback instead of reasoning garbage
         const fallbacks = ['hey', 'sup', 'yo', 'yeah', 'hm', 'word'];
         return fallbacks[Math.floor(Math.random() * fallbacks.length)];
+    },
+
+    /**
+     * Strip modern Unicode emojis from response while keeping ASCII emoticons
+     * Small models (<1B params) often ignore prompt rules about emojis
+     * This preserves 90s-era text emoticons like :) ;) :-) :P etc.
+     * 
+     * @param {string} content - LLM response
+     * @returns {string} Response without modern emojis
+     */
+    stripModernEmojis(content) {
+        // Comprehensive emoji regex covering most Unicode emoji ranges
+        // Includes: emoticons, symbols, pictographs, transport, flags, etc.
+        const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2934}\u{2935}\u{2B05}-\u{2B07}\u{3030}\u{303D}\u{3297}\u{3299}\u{FE0F}]/gu;
+        
+        const cleaned = content.replace(emojiRegex, '').trim();
+        
+        if (cleaned !== content) {
+            console.log('[LLM] Stripped modern emojis from response');
+        }
+        
+        return cleaned;
     },
 
     /**
