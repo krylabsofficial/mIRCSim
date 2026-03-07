@@ -173,8 +173,9 @@ nickname = AcidBurn
 style = Strong female hacker, confident and sharp-tongued, feminist edge
 ```
 
-**Available Personas (23 total):**
-ZeroCool, AcidBurn, LordNikon, CrashOverride, PhantomPhreak, ThePlague, razor, h4x0r, Neo, Trinity, Morpheus, MrRobot, Darlene, Whiterose, Tyrell, Angela, BitKid, ByteBandit, RootAccess, ScriptNinja, PacketSurfer, SilentGh0st, ByteSmith
+**Available Personas:**
+ZeroCool, AcidBurn, LordNikon, Phantom, CrashOverride (required for demo mode)
+User-added personas in `settings/personas.ini`
 
 **How It Works:**
 - Each channel randomly selects 2-4 active personas
@@ -208,7 +209,7 @@ part = #8b4513
 action = #663399
 ```
 
-**Switching Themes:**
+**Switching Themes:** (experimental)
 Open browser console (F12) and type:
 ```javascript
 Config.setTheme('dark')     // Switch to dark theme
@@ -219,9 +220,9 @@ Config.setTheme('classic')  // Back to classic
 
 Themes persist in localStorage and apply on reload.
 
-### Event Settings (⚙️ Button)
+### Event Settings (🎛️ Button)
 
-Event simulation is now configured through a **visual Settings UI** accessible via the gear (🎛️) button in the toolbar.
+Event simulation is now configured through a **visual Settings UI** accessible via the tune (🎛️) button in the toolbar.
 
 **Presets:**
 1. **Chaotic** - Fast-paced events (10-40 second intervals, high frequency)
@@ -538,9 +539,8 @@ MIT License - See LICENSE file for details
 
 ## 🔗 Links
 
-- [GitHub Repository](https://github.com/krylabsofficial/mIRCvibes)
+- [GitHub Repository](https://github.com/krylabsofficial/mIRCSim)
 - [LM Studio](https://lmstudio.ai/)
-- [PRD Document](tasks/prd-mirc-llm-simulator.md)
 
 ---
 
