@@ -159,6 +159,11 @@ const App = {
             EventSimulator.stopAllEvents();
         }
 
+        // Stop RPG status updates
+        if (UI && UI.stopRPGStatusUpdates) {
+            UI.stopRPGStatusUpdates();
+        }
+
         // Clear all windows except Status
         const workspace = UI.elements.mdiWorkspace;
         const windows = workspace.querySelectorAll('.mdi-window');
@@ -267,6 +272,12 @@ const App = {
         console.log('[STARTUP] Initializing EventSettingsUI...');
         if (window.EventSettingsUI) {
             EventSettingsUI.init();
+        }
+
+        // Initialize RPG system (Time Travel Confidant)
+        console.log('[STARTUP] Initializing RPG System...');
+        if (window.RPG) {
+            RPG.init();
         }
 
         this.state.connected = true;
@@ -739,6 +750,11 @@ const App = {
         // Trim history to last 20 messages
         if (this.state.conversationHistory.length > 20) {
             this.state.conversationHistory = this.state.conversationHistory.slice(-20);
+        }
+
+        // Check for temporal slips (RPG System)
+        if (window.RPG) {
+            RPG.handleUserMessage(message, currentChannel);
         }
 
         // Get active personas for current channel (from dynamic channel generation)

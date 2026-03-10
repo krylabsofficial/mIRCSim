@@ -119,6 +119,14 @@ const Config = {
                 lurkers: this.lurkers.length
             });
             
+            // Apply saved event settings from localStorage (must happen AFTER events are loaded)
+            if (window.EventSettingsUI && typeof window.EventSettingsUI.applySettings === 'function') {
+                console.log('[Config] Applying saved event settings from localStorage...');
+                window.EventSettingsUI.applySettings();
+            } else {
+                console.warn('[Config] EventSettingsUI not available yet, saved event settings will not be applied');
+            }
+            
             // Apply saved theme
             this.applyTheme(this.currentTheme);
             
@@ -138,7 +146,23 @@ const Config = {
      * @returns {Object|null} Persona configuration
      */
     getPersona(nickname) {
-        return this.personas[nickname] || null;
+        // Case-insensitive persona lookup
+        if (!nickname) return null;
+        
+        // Try exact match first (fast path)
+        if (this.personas[nickname]) {
+            return this.personas[nickname];
+        }
+        
+        // Fall back to case-insensitive search
+        const lowerNick = nickname.toLowerCase();
+        for (const [key, persona] of Object.entries(this.personas)) {
+            if (key.toLowerCase() === lowerNick) {
+                return persona;
+            }
+        }
+        
+        return null;
     },
 
     /**

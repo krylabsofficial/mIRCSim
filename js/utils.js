@@ -261,6 +261,39 @@ const Utils = {
      */
     sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+    },
+
+    /**
+     * Compare two nicknames (case-insensitive, per IRC spec)
+     * @param {string} nick1 - First nickname
+     * @param {string} nick2 - Second nickname
+     * @returns {boolean} True if nicknames match
+     */
+    nicknameEquals(nick1, nick2) {
+        if (!nick1 || !nick2) return false;
+        return nick1.toLowerCase() === nick2.toLowerCase();
+    },
+
+    /**
+     * Find user in user list by nickname (case-insensitive)
+     * @param {Array} users - Array of user objects with .nick property
+     * @param {string} nickname - Nickname to find
+     * @returns {Object|undefined} User object if found
+     */
+    findUserByNick(users, nickname) {
+        if (!users || !nickname) return undefined;
+        return users.find(u => this.nicknameEquals(u.nick, nickname));
+    },
+
+    /**
+     * Get canonical nickname (preserve original case from user list)
+     * @param {Array} users - Array of user objects with .nick property
+     * @param {string} nickname - Nickname to canonicalize
+     * @returns {string} Canonical nickname if found, otherwise original
+     */
+    getCanonicalNick(users, nickname) {
+        const user = this.findUserByNick(users, nickname);
+        return user ? user.nick : nickname;
     }
 };
 

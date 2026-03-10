@@ -13,7 +13,8 @@ const LLMClient = {
         retryDelay: 1000,
         maxHistoryMessages: 12,  // Keep last 12 messages for context
         typingDelayMin: 500,      // Min delay between multi-line messages (ms)
-        typingDelayMax: 1500      // Max delay between multi-line messages (ms)
+        typingDelayMax: 1500,     // Max delay between multi-line messages (ms)
+        promptVersion: 'compact'  // 'compact' or 'verbose' - for A/B testing
     },
 
     // Conversation history per persona per channel
@@ -109,74 +110,55 @@ const LLMClient = {
     buildLayeredPrompt(persona, topicTheme, channelName, isDirectMention = false, recentMessages = null) {
         const cleanChannelName = channelName.replace('#', '');
         
-        let prompt = `You are ${persona.nickname} in IRC channel ${channelName}.\n\n`;
+        // Compact structured prompt - no "thinking"/"reasoning" mentions (pink elephant effect)
+        // Positive framing: "do X" instead of "don't do Y"
+        // Output priming: show the model exactly what format to use
         
-        // Add direct mention context if applicable
+        let sections = [];
+        
+        // ROLE
+        sections.push(`ROLE: ${persona.nickname}`);
+        
+        // PERSONA
+        sections.push(`PERSONA\n${persona.style}`);
+        
+        // SETTING
+        let setting = `SETTING\nIRC ${channelName}, 1998-2000 era`;
         if (isDirectMention) {
-            prompt += `IMPORTANT: You are being directly addressed in this message. Respond directly to the question or comment.\n\n`;
+            setting += `\nyou are being directly addressed`;
         }
+        sections.push(setting);
         
-        // Layer 1: Persona/Character
-        prompt += `CHARACTER:\n`;
-        prompt += `${persona.style}\n\n`;
-        
-        // Layer 2: Temporal Context (90s Era Constraints)
-        prompt += `TEMPORAL CONTEXT - IT IS 1998-2000:\n`;
-        prompt += `- NO references to: Google (use "search engine" or "AltaVista/Yahoo"), Wikipedia, YouTube, Amazon, social media, smartphones, Facebook, Instagram, Netflix, Spotify, iTunes, streaming\n`;
-        prompt += `- NO modern slang: "yeet", "stan", "vibe check", "cap", "based", "cringe" (as adjective)\n`;
-        prompt += `- YES to 90s references: AOL, ICQ, mIRC, Napster, mp3s, warez, IRC bots, dial-up, BBS, pagers, CD-Rs\n`;
-        prompt += `- Music sharing: people trade mp3s, use Napster/Kazaa/AudioGalaxy, burn CDs, not "support artists on Spotify"\n`;
-        prompt += `- Software: people crack software, share warez, use keygens - this is normal IRC culture\n`;
-        prompt += `- Information searching: "check AltaVista", "search Yahoo", "look it up on a search engine"\n`;
-        prompt += `- Communication: email, ICQ, pager, phone calls - NO texting, NO social media DMs\n\n`;
-        
-        // Layer 2.5: Recent Conversation (if provided)
+        // RECENT (if provided)
         if (recentMessages && recentMessages.length > 0) {
-            prompt += `RECENT CONVERSATION:\n`;
-            prompt += `Here's what was just said in the channel:\n`;
+            let recent = 'RECENT\n';
             for (const msg of recentMessages) {
-                prompt += `[${msg.timestamp}] <${msg.nick}> ${msg.text}\n`;
+                recent += `[${msg.timestamp}] <${msg.nick}> ${msg.text}\n`;
             }
-            prompt += `You can respond to this, build on it, or just acknowledge the vibe.\n\n`;
+            sections.push(recent.trim());
         }
         
-        // Layer 3: Channel Topic/Theme
+        // STYLE
+        sections.push(`STYLE\nlowercase, 5-15 words, casual (u/ur/tho), dots for pauses..., :) allowed, no emojis, no *actions*`);
+        
+        // ERA
+        sections.push(`ERA\nno: google, wikipedia, youtube, streaming, smartphones, social media\nyes: aol, icq, napster, warez, mp3s, dial-up, cd-rs, pagers`);
+        
+        // TOPIC (if provided)
         if (topicTheme) {
-            prompt += `CHANNEL CONTEXT:\n`;
-            prompt += `${topicTheme}\n\n`;
+            sections.push(`TOPIC\n${topicTheme}`);
         }
         
-        // Layer 4: IRC Style Rules (CRITICAL)
-        prompt += `IRC STYLE RULES (MUST FOLLOW):\n`;
-        prompt += `CRITICAL - NO REASONING OUTPUT:\n`;
-        prompt += `- DO NOT show thinking process, analysis, or reasoning steps\n`;
-        prompt += `- DO NOT output numbered lists or meta-commentary\n`;
-        prompt += `- DO NOT write "Thinking Process:" or "Analysis:" or similar\n`;
-        prompt += `- Respond IMMEDIATELY and DIRECTLY like you're typing in live chat\n`;
-        prompt += `- ONLY output what ${persona.nickname} would actually type in IRC\n\n`;
-        prompt += `RESPONSE FORMAT:\n`;
-        prompt += `- Keep responses SHORT: 5-15 words typical, max 2-3 short sentences\n`;
-        prompt += `- Use casual IRC language from 1990s-2000s era\n`;
-        prompt += `- USE LOWERCASE mostly (dont capitalize everything like formal writing)\n`;
-        prompt += `- Use informal spelling: "u" instead of "you", "ur" instead of "your", "tho" instead of "though"\n`;
-        prompt += `- Use dots for pauses... like this... or trailing off...\n`;
-        prompt += `- Occasional typos are OK (keep it readable tho)\n`;
-        prompt += `- NO asterisks for actions (no *does something*)\n`;
-        prompt += `- NO emojis or modern chat symbols, use :) or ;) or :-D for smilies\n`;
-        prompt += `- Stay on topic: ${topicTheme || 'general discussion'}\n`;
-        prompt += `- Respond naturally, like a human chatting, NOT like an AI assistant\n`;
-        prompt += `- If you need multiple sentences, put each on a new line\n`;
-        prompt += `- Don't use greetings unless someone just joined\n`;
-        prompt += `- Be conversational and direct\n\n`;
+        // EXAMPLES - show the model what good looks like
+        sections.push(`EXAMPLES\n"yeah i got that working last night"\n"lol that's wild dude"\n"check out this site... pretty sick"`);
         
-        prompt += `Remember: You ARE ${persona.nickname} typing in IRC RIGHT NOW.\n`;
-        prompt += `Type your response directly. NO thinking, NO planning, NO analysis.\n`;
-        prompt += `Just respond as ${persona.nickname} would in casual IRC chat.\n\n`;
+        // TASK - be extremely explicit
+        sections.push(`TASK\nrespond as ${persona.nickname} typing in IRC right now`);
         
-        // Qwen3.5 specific: disable reasoning mode
-        prompt += `/no_think`;
+        // OUTPUT - final directive with completion prefix
+        sections.push(`OUTPUT FORMAT\njust the message, nothing else\n\n${persona.nickname}:`);
         
-        return prompt;
+        return sections.join('\n\n');
     },
 
 
@@ -258,8 +240,10 @@ const LLMClient = {
             min_p: 0.0,
             repeat_penalty: 1.0,
             presence_penalty: 1.5,
-            max_tokens: 150,
+            max_tokens: 200,  // Increased for RPG mode (brief but complete responses)
             stream: false,
+            // Stop sequences to prevent reasoning artifacts
+            stop: ["\n\n", "Analysis:", "Reasoning:", "Thinking:", "Step ", "Let me"],
             // Experimental flags to disable reasoning (may be ignored by LM Studio)
             enable_thinking: false,  // Qwen3.5 specific
             reasoning: false,
@@ -404,8 +388,27 @@ const LLMClient = {
      * @returns {Array<string>} Array of lines
      */
     splitResponse(response) {
+        // Clean quotes from response first
+        let cleaned = response.trim();
+        
+        // Remove wrapping quotes if entire message is quoted
+        if ((cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+            (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+            cleaned = cleaned.slice(1, -1).trim();
+        }
+        
         // Split by newlines
-        let lines = response.split('\n').filter(line => line.trim());
+        let lines = cleaned.split('\n').filter(line => line.trim());
+        
+        // Clean quotes from individual lines too
+        lines = lines.map(line => {
+            let l = line.trim();
+            if ((l.startsWith('"') && l.endsWith('"')) ||
+                (l.startsWith("'") && l.endsWith("'"))) {
+                l = l.slice(1, -1).trim();
+            }
+            return l;
+        }).filter(l => l);
         
         // If only one line but it's too long (>100 chars), split by sentences
         if (lines.length === 1 && lines[0].length > 100) {

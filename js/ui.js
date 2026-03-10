@@ -13,6 +13,12 @@ const UI = {
     // Active window
     activeWindow: 'Status',
 
+    // Query/PM windows (tracks open private message windows)
+    queryWindows: {},
+
+    // RPG status update interval
+    rpgStatusInterval: null,
+
     /**
      * Initialize UI - cache DOM elements and set up event listeners
      */
@@ -62,7 +68,9 @@ const UI = {
             // Status display
             currentWindowDisplay: document.getElementById('current-window'),
             userCount: document.getElementById('user-count'),
-            modeIndicator: document.getElementById('mode-indicator')
+            modeIndicator: document.getElementById('mode-indicator'),
+            serverTime: document.getElementById('server-time'),
+            participationCount: document.getElementById('participation-count')
         };
     },
 
@@ -70,12 +78,56 @@ const UI = {
      * Attach event listeners
      */
     attachEventListeners() {
+        // Tab key cycling through non-minimized windows
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                // Only handle Tab when not in connection dialog inputs
+                if (e.target.id === 'server-input' || e.target.id === 'nickname-input') {
+                    return; // Let default tab behavior work in connection dialog
+                }
+                
+                // Prevent default tab behavior
+                e.preventDefault();
+                
+                // Cycle windows
+                if (e.shiftKey) {
+                    this.cycleToPreviousWindow();
+                } else {
+                    this.cycleToNextWindow();
+                }
+            }
+        });
+
         // Delegate event for window inputs (since they're created dynamically)
         document.addEventListener('keypress', (e) => {
             if (e.target.classList.contains('window-input') && e.key === 'Enter') {
                 const message = e.target.value.trim();
                 if (message) {
-                    window.App.handleUserMessage(message);
+                    const windowName = e.target.dataset.window;
+                    
+                    // Check if this is a query window
+                    if (windowName && windowName.startsWith('[') && windowName.endsWith(']')) {
+                        // Handle query window input
+                        const nickname = windowName.slice(1, -1);  // Remove [ and ]
+                        
+                        // Check if it's a command
+                        if (message.startsWith('/')) {
+                            // Process commands normally
+                            window.App.handleUserMessage(message);
+                        } else {
+                            // Send message to query window
+                            UI.sendPrivateMessage(nickname, message, false);
+                            
+                            // Notify RPG system about PM (for confidant interaction)
+                            if (window.RPG && window.RPG.PrivateMessaging) {
+                                RPG.PrivateMessaging.receiveMessage(nickname, message);
+                            }
+                        }
+                    } else {
+                        // Normal channel/status window processing
+                        window.App.handleUserMessage(message);
+                    }
+                    
                     e.target.value = '';
                 }
             }
@@ -198,6 +250,74 @@ const UI = {
         this.activeWindow = 'Status';
         this.nextZIndex = 101; // Start z-index for windows
         this.windowStates = {}; // Track window states (position, size, minimized, maximized)
+        
+        // Start RPG statusbar update interval
+        this.startRPGStatusUpdates();
+    },
+
+    /**
+     * Start periodic updates of RPG status in statusbar
+     */
+    startRPGStatusUpdates() {
+        // Update immediately
+        this.updateRPGStatus();
+        
+        // Update every second
+        if (this.rpgStatusInterval) {
+            clearInterval(this.rpgStatusInterval);
+        }
+        this.rpgStatusInterval = setInterval(() => {
+            this.updateRPGStatus();
+        }, 1000);
+    },
+
+    /**
+     * Stop RPG status updates
+     */
+    stopRPGStatusUpdates() {
+        if (this.rpgStatusInterval) {
+            clearInterval(this.rpgStatusInterval);
+            this.rpgStatusInterval = null;
+        }
+    },
+
+    /**
+     * Update RPG status displays in statusbar
+     */
+    updateRPGStatus() {
+        if (!window.RPG || !window.RPG.state || !window.RPG.state.initialized) {
+            if (this.elements.serverTime) {
+                this.elements.serverTime.textContent = 'Server: 00:00:00';
+            }
+            if (this.elements.participationCount) {
+                this.elements.participationCount.textContent = 'Participation: 0 msg';
+            }
+            return;
+        }
+
+        const rpgState = window.RPG.state;
+        
+        // Calculate time elapsed in HH:MM:SS format
+        let timeString = '00:00:00';
+        if (rpgState.observationStartTime) {
+            const elapsedMs = Date.now() - rpgState.observationStartTime;
+            const totalSeconds = Math.floor(elapsedMs / 1000);
+            
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            
+            // Format with leading zeros
+            timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        // Update displays
+        if (this.elements.serverTime) {
+            this.elements.serverTime.textContent = `Server: ${timeString}`;
+        }
+        if (this.elements.participationCount) {
+            this.elements.participationCount.textContent = `Participation: ${rpgState.userMessageCount || 0} msg`;
+        }
     },
 
     /**
@@ -722,11 +842,216 @@ const UI = {
     },
 
     /**
+     * Create or switch to a query/PM window
+     * @param {string} nickname - Target nickname for private messaging
+     * @param {boolean} switchTo - Whether to switch to this window
+     */
+    createQueryWindow(nickname, switchTo = true) {
+        // Find existing query window with case-insensitive nickname matching
+        const queryWindows = document.querySelectorAll('.mdi-window[data-is-query="true"]');
+        let existingWindow = null;
+        let canonicalNick = nickname;
+        
+        for (const window of queryWindows) {
+            const targetNick = window.dataset.targetNick;
+            if (Utils.nicknameEquals(targetNick, nickname)) {
+                existingWindow = window;
+                canonicalNick = targetNick; // Use existing canonical case
+                break;
+            }
+        }
+        
+        const windowName = `[${canonicalNick}]`;
+        
+        if (existingWindow) {
+            if (switchTo) {
+                existingWindow.classList.remove('minimized');
+                this.activateWindow(windowName);
+            }
+            return windowName;
+        }
+
+        // Create new MDI window
+        const mdiWindow = document.createElement('div');
+        mdiWindow.className = 'mdi-window';
+        mdiWindow.id = `window-${windowName}`;
+        mdiWindow.dataset.window = windowName;
+        mdiWindow.dataset.isQuery = 'true';  // Mark as query window
+        mdiWindow.dataset.targetNick = nickname;  // Store target nickname
+
+        // Calculate position (cascade new windows)
+        const existingWindows = document.querySelectorAll('.mdi-window').length;
+        const offsetX = 40 + (existingWindows * 30);
+        const offsetY = 40 + (existingWindows * 30);
+        mdiWindow.style.top = `${offsetY}px`;
+        mdiWindow.style.left = `${offsetX}px`;
+        mdiWindow.style.width = '500px';
+        mdiWindow.style.height = '350px';
+
+        // Create titlebar
+        const titlebar = document.createElement('div');
+        titlebar.className = 'window-titlebar';
+        
+        const icon = document.createElement('span');
+        icon.className = 'window-icon';
+        icon.textContent = '💬';
+        titlebar.appendChild(icon);
+
+        const title = document.createElement('span');
+        title.className = 'window-title';
+        title.textContent = windowName;
+        title.style.whiteSpace = 'nowrap';
+        title.style.overflow = 'hidden';
+        title.style.textOverflow = 'ellipsis';
+        title.style.minWidth = '0';
+        titlebar.appendChild(title);
+
+        // Window controls
+        const controls = document.createElement('div');
+        controls.className = 'window-controls';
+
+        const minimizeBtn = document.createElement('button');
+        minimizeBtn.className = 'window-btn minimize-btn';
+        minimizeBtn.title = 'Minimize';
+        minimizeBtn.textContent = '_';
+        controls.appendChild(minimizeBtn);
+
+        const maximizeBtn = document.createElement('button');
+        maximizeBtn.className = 'window-btn maximize-btn';
+        maximizeBtn.title = 'Maximize';
+        maximizeBtn.textContent = '□';
+        controls.appendChild(maximizeBtn);
+
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'window-btn close-btn';
+        closeBtn.title = 'Close';
+        closeBtn.textContent = '×';
+        controls.appendChild(closeBtn);
+
+        titlebar.appendChild(controls);
+        mdiWindow.appendChild(titlebar);
+
+        // Window content
+        const content = document.createElement('div');
+        content.className = 'window-content';
+
+        // Main area (messages + input) - NO user list for query windows
+        const mainArea = document.createElement('div');
+        mainArea.className = 'window-main';
+        mainArea.style.width = '100%';  // Full width since no user list
+
+        const messageArea = document.createElement('div');
+        messageArea.className = 'message-area';
+        messageArea.id = `messages-${windowName.replace(/[\[\]]/g, '')}`;
+        mainArea.appendChild(messageArea);
+
+        const inputArea = document.createElement('div');
+        inputArea.className = 'input-area';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'message-input window-input';
+        input.placeholder = `Message ${nickname}...`;
+        input.autocomplete = 'off';
+        input.dataset.window = windowName;
+        inputArea.appendChild(input);
+        mainArea.appendChild(inputArea);
+
+        content.appendChild(mainArea);
+        mdiWindow.appendChild(content);
+
+        // Resize handle
+        const resizeHandle = document.createElement('div');
+        resizeHandle.className = 'window-resize-handle';
+        mdiWindow.appendChild(resizeHandle);
+
+        // Add to workspace
+        this.elements.mdiWorkspace.appendChild(mdiWindow);
+
+        // Create switchbar button
+        const switchBtn = document.createElement('button');
+        switchBtn.className = 'switch-btn';
+        switchBtn.dataset.window = windowName;
+
+        const switchIcon = document.createElement('span');
+        switchIcon.className = 'switch-icon';
+        switchIcon.textContent = '💬';
+        switchBtn.appendChild(switchIcon);
+
+        const switchLabel = document.createElement('span');
+        switchLabel.className = 'switch-label';
+        switchLabel.textContent = windowName;
+        switchBtn.appendChild(switchLabel);
+
+        this.elements.switchbar.appendChild(switchBtn);
+
+        // Initialize message history for this window
+        this.messageHistory[windowName] = [];
+
+        // Track query window
+        this.queryWindows[nickname] = windowName;
+
+        console.log(`[UI] Created query window: ${windowName} for ${nickname}`);
+
+        if (switchTo) {
+            this.activateWindow(windowName);
+        }
+
+        return windowName;
+    },
+
+    /**
      * Switch to a specific window
      * @param {string} windowName - Window name
      */
     switchToWindow(windowName) {
         this.activateWindow(windowName);
+    },
+
+    /**
+     * Cycle to the next non-minimized window
+     */
+    cycleToNextWindow() {
+        const windows = this.getNonMinimizedWindows();
+        if (windows.length <= 1) return; // Nothing to cycle
+
+        const currentIndex = windows.findIndex(win => win.dataset.window === this.activeWindow);
+        const nextIndex = (currentIndex + 1) % windows.length;
+        const nextWindow = windows[nextIndex];
+        
+        this.activateWindow(nextWindow.dataset.window);
+    },
+
+    /**
+     * Cycle to the previous non-minimized window
+     */
+    cycleToPreviousWindow() {
+        const windows = this.getNonMinimizedWindows();
+        if (windows.length <= 1) return; // Nothing to cycle
+
+        const currentIndex = windows.findIndex(win => win.dataset.window === this.activeWindow);
+        const prevIndex = currentIndex <= 0 ? windows.length - 1 : currentIndex - 1;
+        const prevWindow = windows[prevIndex];
+        
+        this.activateWindow(prevWindow.dataset.window);
+    },
+
+    /**
+     * Get all non-minimized windows sorted by creation order
+     * @returns {Array} Array of window elements
+     */
+    getNonMinimizedWindows() {
+        const windows = Array.from(document.querySelectorAll('.mdi-window:not(.minimized)'));
+        
+        // Sort windows: Status first, then others in document order
+        windows.sort((a, b) => {
+            const aName = a.dataset.window;
+            const bName = b.dataset.window;
+            if (aName === 'Status') return -1;
+            if (bName === 'Status') return 1;
+            return 0;
+        });
+        
+        return windows;
     },
 
     /**
@@ -746,6 +1071,13 @@ const UI = {
 
         // Clear message history
         delete this.messageHistory[windowName];
+
+        // Clean up query window tracking
+        if (windowName.startsWith('[') && windowName.endsWith(']')) {
+            const nickname = windowName.slice(1, -1);  // Remove [ and ]
+            delete this.queryWindows[nickname];
+            console.log(`[UI] Closed query window for ${nickname}`);
+        }
 
         // Clean up channel state in App if it's a channel window
         if (windowName.startsWith('#') && window.App) {
@@ -864,8 +1196,14 @@ const UI = {
             this.createOrSwitchWindow(targetWindow, false);
         }
 
-        const messageArea = document.querySelector(`#messages-${targetWindow.replace('#', '')}`);
-        if (!messageArea) return;
+        // Strip special characters from window name for ID lookup
+        // Handles both channel names (#channel) and query windows ([nickname])
+        const cleanWindowName = targetWindow.replace(/[#\[\]]/g, '');
+        const messageArea = document.querySelector(`#messages-${cleanWindowName}`);
+        if (!messageArea) {
+            console.error(`[UI] Message area not found for window: ${targetWindow} (looking for #messages-${cleanWindowName})`);
+            return;
+        }
 
         const msgElement = document.createElement('div');
         msgElement.className = `message ${message.type || 'normal'}`;
@@ -971,7 +1309,9 @@ const UI = {
      */
     clearMessages(windowName = null) {
         const targetWindow = windowName || this.activeWindow;
-        const messageArea = document.querySelector(`#messages-${targetWindow.replace('#', '')}`);
+        // Strip special characters from window name for ID lookup
+        const cleanWindowName = targetWindow.replace(/[#\[\]]/g, '');
+        const messageArea = document.querySelector(`#messages-${cleanWindowName}`);
         if (messageArea) {
             messageArea.innerHTML = '';
         }
@@ -984,6 +1324,52 @@ const UI = {
      */
     clearChat(windowName = null) {
         this.clearMessages(windowName);
+    },
+
+    /**
+     * Send a private message to a user
+     * @param {string} nickname - Target nickname
+     * @param {string} text - Message text
+     * @param {boolean} focus - Whether to focus the window (default: true)
+     */
+    sendPrivateMessage(nickname, text, focus = true) {
+        // Create or get query window
+        const windowName = this.createQueryWindow(nickname, focus);
+        
+        // Add message to query window
+        this.addMessage({
+            type: 'normal',
+            nick: Config.state.nickname,
+            text: text,
+            timestamp: new Date()
+        }, windowName);
+
+        console.log(`[UI] Sent PM to ${nickname}: ${text}`);
+        
+        return windowName;
+    },
+
+    /**
+     * Receive a private message from a user
+     * @param {string} nickname - Sender nickname
+     * @param {string} text - Message text
+     * @param {boolean} focus - Whether to focus the window (default: true)
+     */
+    receivePrivateMessage(nickname, text, focus = true) {
+        // Create or get query window
+        const windowName = this.createQueryWindow(nickname, focus);
+        
+        // Add message to query window
+        this.addMessage({
+            type: 'normal',
+            nick: nickname,
+            text: text,
+            timestamp: new Date()
+        }, windowName);
+
+        console.log(`[UI] Received PM from ${nickname}: ${text}`);
+        
+        return windowName;
     },
 
     /**

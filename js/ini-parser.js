@@ -179,7 +179,8 @@ const IniParser = {
             'mode': { enabled: true, frequency: 120, description: 'Operator changes user modes (+o, +v, etc)' },
             'netsplit': { enabled: true, frequency: 300, description: 'Network split event (5-15 users disconnect)' },
             'kline': { enabled: false, frequency: 600, description: 'Server ban announcement' },
-            'idle_chatter': { enabled: true, frequency: 20, description: 'Active personas send random messages' }
+            'idle_chatter': { enabled: true, frequency: 20, description: 'Active personas send random messages' },
+            'rpg_event_1': { enabled: true, serverTimeMinutes: 10, channelParticipation: 25, description: 'Time Travel Confidant RPG trigger' }
         };
     },
 

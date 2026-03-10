@@ -22,10 +22,15 @@ A fully local, retro IRC-style web application where you chat with AI-powered pe
 - 🎲 **Event simulation** - Realistic IRC events (joins, parts, quits, mode changes, netsplits)
 - ⚙️ **Event Settings UI** - Visual preset system (Chaotic, Normal, Chill, Custom) with real-time editing
 - 🪟 **MDI Window Management** - Cascade, Tile, Minimize All with multi-directional resize
+- ⌨️ **Tab key window cycling** - Press Tab/Shift+Tab to cycle through active windows
+- 📊 **Live statusbar** - Track server time and message participation in real-time
 - 💾 **State persistence** - Window positions and settings saved to localStorage
 - 🎪 **Auto-scroll** - Always stay at the newest messages across all channels
 - ⚡ **Performance optimized** - 500 message limit per channel with auto-cleanup
 - 🔌 **Disconnect button** - Quick return to connection screen
+
+### Experimental Features
+- 🎮 **RPG Mode: Time Travel Confidant** - After meeting certain activity thresholds, a perceptive persona may reach out via private message with suspicions about you. Navigate the conversation carefully—successful storyline progression unlocks a unique confidant persona who knows your secret and becomes available for ongoing private conversations. Features multi-stage dialogue system with LLM-powered responses and re-engagement mechanics.
 
 ## 🚀 Quick Start
 
@@ -88,6 +93,49 @@ Try the simulator immediately without installing anything:
    ```
 
 5. **Start chatting!** 🎉
+
+## 🧠 Model Selection (Important!)
+
+Model choice is **critical** for the simulator to work properly. Many models will fail or produce poor results.
+
+### ✅ Recommended Models (Tested & Working)
+
+- **Llama 3.1 (8B)** - excellent for IRC chat, highly recommended
+- **llama-3.1-8b-lexi-uncensored-v2** - very stable uncensored Llama 3.1 finetune
+- **gemma-3-4b** - works well
+- **Gemma 2 (9B/27B Instruct)** - fast and concise
+- **Qwen3 4B Instruct 2507** - official base models
+- **qwen3-4b-2507-instruct-uncensored-hauhaucs-aggressive** - stable uncensored Qwen3 finetune
+- **Qwen3.5 4B** - official base models
+
+### ❌ Incompatible Models (Tested & NOT Working)
+
+- **Qwen3.5 4B** - reasoning model
+- **qwen2.5-0.5b-instruct** - too small (<1B models generally fail)
+- **mistral-7b-instruct-v0.2** - produces poor responses
+- **Any "reasoning", "thinking", or "CoT" models** - output analysis instead of chat
+
+### 🔍 How to Identify Reasoning Models
+
+1. Check model name/description for: "reasoning", "thinking", "CoT", "analysis"
+2. **Test in LM Studio chat:** Ask "hello" - if it responds with "1. Analyze..." or "Thinking Process:", it's a reasoning model
+3. Check browser console (F12) for reasoning detection warnings
+
+### ⚡ Recommended LM Studio Settings
+
+For best IRC chat results:
+```
+Temperature: 0.8
+Max Tokens: 40-50 (prevents long responses)
+Top-p: 0.9
+Repeat Penalty: 1.1
+```
+
+**Why model selection matters:**
+- ✅ Good models (7B+ instruct) produce natural, brief IRC-style chat
+- ❌ Small models (<3B) lack capacity for roleplay
+- ❌ Reasoning models output "thinking steps" instead of chatting
+- ❌ Wrong settings allow models to write essays instead of short messages
 
 ### Advanced: Custom LM Studio Configuration
 
@@ -183,6 +231,14 @@ User-added personas in `settings/personas.ini`
 - Same personas can appear in multiple channels
 - Personas respond when directly mentioned (e.g., "hey zero, what's up?")
 - 15% chance of butt-in responses when other personas are mentioned
+***Current System: "Reactive Puppets"***
+  - User types message in IRC
+  - Code decides: "Should someone respond?" (random chance, direct mention, etc.)
+  - Code picks a persona: "AcidBurn will reply"
+  - Code sends ONE prompt to LLM: "You are AcidBurn, respond to this: [message]"
+  - LLM returns text, you display it
+  - Done. Persona goes back to sleep.
+  - Analogy: You're a puppeteer pulling strings. Personas only "exist" when you activate them.
 
 **Note:** `color` property is deprecated - nickname colors now controlled by theme system.
 
@@ -239,6 +295,7 @@ Event simulation is now configured through a **visual Settings UI** accessible v
 - **Topic changes:** Updates channel topic (blue color)
 - **Netsplits:** Server disconnections with delayed rejoins (brown color)
 - **K-lines:** Server bans (red color)
+- **RPG Event:** Time Travel Confidant trigger based on server time and message participation
 - **Idle chatter:** Background lurker messages (planned)
 
 **How to Use:**
@@ -247,6 +304,15 @@ Event simulation is now configured through a **visual Settings UI** accessible v
 3. Toggle events on/off with checkboxes
 4. Settings save automatically to localStorage
 5. Custom mode activates when you modify any preset value
+
+**RPG Event Settings:**
+The Event Settings modal includes a special "RPG Event" section for configuring the Time Travel Confidant feature:
+- **Server Time:** Minimum minutes online before trigger (5-30 min)
+- **Channel Participation:** Minimum messages sent before trigger (10-100 messages)
+- **Status Indicators:** Red/green circles show real-time progress toward thresholds
+- **Statusbar Tracking:** Bottom bar displays "Server: HH:MM:SS" and "Participation: X msg" counters
+
+Presets automatically configure RPG thresholds (Chaotic: 5min/10msg, Normal: 10min/25msg, Chill: 15min/40msg).
 
 **Lurker Pool:**
 Background users are loaded from the `[lurkers]` section in `personas.ini` (180+ names by default).
@@ -309,6 +375,8 @@ If the main user receives operator status (@) when joining, ChanServ sends a wel
 
 ### Window Management
 - `/clear` - Clear current window's message history
+- **Tab** - Cycle to next active window (excludes minimized windows)
+- **Shift+Tab** - Cycle to previous active window
 - **📊 Minimize All** - Minimize all windows except Status
 - **🗂️ Cascade Windows** - Stagger windows diagonally (Status first)
 - **⊞ Tile Windows** - Arrange non-minimized windows in grid layout
@@ -324,7 +392,8 @@ If the main user receives operator status (@) when joining, ChanServ sends a wel
 **Tips:**
 - Direct mentions work with shortened names: "hey zero" finds ZeroCool
 - Minimum 3-5 character nicknames for fuzzy matching
-- Use TAB to cycle through windows (planned feature)
+- Tab key cycles through active windows, automatically focusing the input box
+- Statusbar (bottom) shows server time and participation count for RPG mode tracking
 
 ## 🐛 Troubleshooting
 
@@ -437,37 +506,9 @@ If the main user receives operator status (@) when joining, ChanServ sends a wel
 
 **Reasoning model outputting "Thinking Process:" or analysis steps**
 
-**Symptoms:**
-- Personas respond with numbered steps: "1. Analyze the request..." "2. Determine response..."
-- Long verbose responses instead of short IRC chat
-- Messages like "Thinking Process:", "Analysis:", "**Goal:**"
-- Or personas just respond with generic fallbacks ("hey", "sup") repeatedly
+If you see personas outputting numbered steps, long verbose analysis, or "Thinking Process:" messages, you're using an incompatible reasoning model. See the **Model Selection** section (near the top of this README) for recommended models.
 
-**Cause:**
-Some models are trained to output chain-of-thought reasoning. This is INCOMPATIBLE with IRC chat simulation.
-
-**Incompatible models:**
-- ❌ QwQ-32B (dedicated reasoning model)
-- ❌ Qwen3.5 "Reasoning" or "Aggressive" fine-tunes
-- ❌ DeepSeek-R1 (reasoning variant)
-- ❌ Any model with "reasoning", "think", "CoT" in the name
-- ❌ Community fine-tunes labeled "verbose" or "analytical"
-
-**Recommended models (tested & working):**
-- ✅ **Llama 3.1 (8B/70B Instruct)** - excellent for IRC chat
-- ✅ **Llama 3.3 (70B Instruct)** - newest, very good
-- ✅ **Gemma 2 (9B/27B Instruct)** - fast and concise
-- ✅ **Qwen2.5 (7B/14B/32B Instruct)** - official base models (NOT community fine-tunes)
-- ✅ **Mistral 7B v0.3 Instruct** - classic reliable choice
-- ✅ **Mistral Nemo 12B Instruct** - good balance
-
-**How to identify reasoning models:**
-1. Check model name/description for "reasoning", "thinking", "CoT"
-2. Test in LM Studio chat: ask "hello" - if it responds with analysis steps, it's a reasoning model
-3. Check browser console (F12) - look for warnings about reasoning artifacts
-
-**Solution:**
-Switch to a recommended model from the list above. The app includes reasoning detection and will show generic fallbacks, but you won't get quality persona responses.
+**Solution:** Switch to a tested model like Llama 3.1 8B or Gemma 2 9B.
 
 **Personas not responding or very slow responses**
 

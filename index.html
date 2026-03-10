@@ -126,6 +126,12 @@
         <!-- Status Bar (Bottom) -->
         <div class="status-bar">
             <div class="status-section">
+                <span id="server-time">Server: 00:00:00</span>
+            </div>
+            <div class="status-section">
+                <span id="participation-count">Participation: 0 msg</span>
+            </div>
+            <div class="status-section">
                 <span id="current-window">Status</span>
             </div>
             <div class="status-section">
@@ -166,6 +172,10 @@
                     <h3>Channel Events</h3>
                     <div id="channel-events-list" class="event-list"></div>
                 </div>
+                <div class="event-section">
+                    <h3>RPG Event #1</h3>
+                    <div id="rpg-events-list" class="event-list"></div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button id="save-event-settings" class="modal-action-btn">Save</button>
@@ -178,14 +188,15 @@
     <script src="js/utils.js"></script>
     <script src="js/username-generator.js"></script>
     <script src="js/topic-generator.js?v=3"></script>
-    <script src="js/ini-parser.js"></script>
-    <script src="js/config.js?v=14"></script>
+    <script src="js/ini-parser.js?v=2"></script>
+    <script src="js/config.js?v=16"></script>
     <script src="js/demo.js"></script>
-    <script src="js/llm-client.js?v=9"></script>
-    <script src="js/ui.js?v=56"></script>
-    <script src="js/irc-commands.js?v=3"></script>
+    <script src="js/llm-client.js?v=14"></script>
+    <script src="js/ui.js?v=64"></script>
+    <script src="js/irc-commands.js?v=8"></script>
     <script src="js/event-simulator.js?v=10"></script>
-    <script src="js/app.js?v=19"></script>
-    <script src="js/event-settings-ui.js?v=16"></script>
+    <script src="js/rpg.js?v=63"></script>
+    <script src="js/app.js?v=20"></script>
+    <script src="js/event-settings-ui.js?v=23"></script>
 </body>
 </html>

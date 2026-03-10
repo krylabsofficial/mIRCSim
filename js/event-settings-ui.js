@@ -10,14 +10,17 @@
         modal: null,
         globalEventsList: null,
         channelEventsList: null,
+        rpgEventsList: null,
         settingsCache: {},
         initialized: false,
+        rpgUpdateInterval: null,
 
         // Event classifications (must match event-simulator.js)
         globalEvents: ['quit', 'netsplit', 'kline'],
         channelEvents: ['join', 'part', 'topic_change', 'kick', 'mode', 'idle_chatter'],
+        rpgEvents: ['rpg_event_1'],
 
-        // Slider ranges for each event type (seconds)
+        // Slider ranges for each event type (seconds, except RPG which uses minutes/messages)
         sliderRanges: {
             'join': { min: 10, max: 180 },
             'part': { min: 15, max: 300 },
@@ -27,7 +30,12 @@
             'mode': { min: 30, max: 600 },
             'netsplit': { min: 120, max: 900 },
             'kline': { min: 300, max: 1800 },
-            'idle_chatter': { min: 5, max: 120 }
+            'idle_chatter': { min: 5, max: 120 },
+            // RPG Event #1 - special handling (minutes and messages, not seconds)
+            'rpg_event_1': { 
+                serverTime: { min: 5, max: 30 },           // minutes
+                participation: { min: 10, max: 100 }       // messages
+            }
         },
 
         // Activity presets
@@ -44,7 +52,8 @@
                     'mode': { enabled: true, frequency: 40 },
                     'netsplit': { enabled: true, frequency: 120 },
                     'kline': { enabled: true, frequency: 300 },
-                    'idle_chatter': { enabled: true, frequency: 10 }
+                    'idle_chatter': { enabled: true, frequency: 10 },
+                    'rpg_event_1': { enabled: true, serverTimeMinutes: 10, channelParticipation: 25 }
                 }
             },
             'normal': {
@@ -59,7 +68,8 @@
                     'mode': { enabled: true, frequency: 120 },
                     'netsplit': { enabled: true, frequency: 300 },
                     'kline': { enabled: false, frequency: 600 },
-                    'idle_chatter': { enabled: true, frequency: 20 }
+                    'idle_chatter': { enabled: true, frequency: 20 },
+                    'rpg_event_1': { enabled: true, serverTimeMinutes: 10, channelParticipation: 25 }
                 }
             },
             'chill': {
@@ -74,7 +84,8 @@
                     'mode': { enabled: false, frequency: 180 },
                     'netsplit': { enabled: false, frequency: 600 },
                     'kline': { enabled: false, frequency: 900 },
-                    'idle_chatter': { enabled: true, frequency: 60 }
+                    'idle_chatter': { enabled: true, frequency: 60 },
+                    'rpg_event_1': { enabled: true, serverTimeMinutes: 10, channelParticipation: 25 }
                 }
             }
         },
@@ -100,9 +111,10 @@
             this.modal = document.getElementById('event-settings-modal');
             this.globalEventsList = document.getElementById('global-events-list');
             this.channelEventsList = document.getElementById('channel-events-list');
+            this.rpgEventsList = document.getElementById('rpg-events-list');
 
             console.log('EventSettingsUI - Modal found:', !!this.modal);
-            console.log('EventSettingsUI - Lists found:', !!this.globalEventsList, !!this.channelEventsList);
+            console.log('EventSettingsUI - Lists found:', !!this.globalEventsList, !!this.channelEventsList, !!this.rpgEventsList);
 
             if (!this.modal) {
                 console.error('Event settings modal not found in DOM');
@@ -270,6 +282,15 @@
                 modalFooter.style.justifyContent = 'center';
                 modalFooter.style.gap = '8px';
             }
+
+            // Update RPG indicators initially and start periodic updates
+            this.updateRPGIndicators();
+            if (this.rpgUpdateInterval) {
+                clearInterval(this.rpgUpdateInterval);
+            }
+            this.rpgUpdateInterval = setInterval(() => {
+                this.updateRPGIndicators();
+            }, 1000); // Update every second
             
             console.log('Modal classes after show:', this.modal.className);
             console.log('Modal computed display:', window.getComputedStyle(this.modal).display);
@@ -285,6 +306,12 @@
             console.log('Closing event settings modal');
             this.modal.style.display = 'none';
             this.modal.classList.remove('show');
+            
+            // Stop RPG indicator updates
+            if (this.rpgUpdateInterval) {
+                clearInterval(this.rpgUpdateInterval);
+                this.rpgUpdateInterval = null;
+            }
         },
 
         /**
@@ -348,7 +375,7 @@
             // Update settingsCache
             this.settingsCache = JSON.parse(JSON.stringify(preset.settings));
             
-            // Update UI elements
+            // Update UI elements for time-based events
             [...this.globalEvents, ...this.channelEvents].forEach(eventType => {
                 const settings = preset.settings[eventType];
                 if (!settings) return;
@@ -363,6 +390,30 @@
                     slider.disabled = !settings.enabled;
                 }
                 if (label) label.textContent = `Every ${settings.frequency}s`;
+            });
+
+            // Update UI elements for RPG events (special handling)
+            this.rpgEvents.forEach(eventType => {
+                const settings = preset.settings[eventType];
+                if (!settings) return;
+
+                const checkbox = document.getElementById(`event-${eventType}-enabled`);
+                const timeSlider = document.getElementById(`event-${eventType}-servertime`);
+                const timeLabel = document.getElementById(`event-${eventType}-servertime-label`);
+                const participationSlider = document.getElementById(`event-${eventType}-participation`);
+                const participationLabel = document.getElementById(`event-${eventType}-participation-label`);
+
+                if (checkbox) checkbox.checked = settings.enabled;
+                if (timeSlider) {
+                    timeSlider.value = settings.serverTimeMinutes;
+                    timeSlider.disabled = !settings.enabled;
+                }
+                if (timeLabel) timeLabel.textContent = `${settings.serverTimeMinutes} min`;
+                if (participationSlider) {
+                    participationSlider.value = settings.channelParticipation;
+                    participationSlider.disabled = !settings.enabled;
+                }
+                if (participationLabel) participationLabel.textContent = `${settings.channelParticipation} msg`;
             });
 
             this.currentPreset = presetName;
@@ -383,11 +434,26 @@
                 
                 for (const [eventType, settings] of Object.entries(preset.settings)) {
                     const cached = this.settingsCache[eventType];
-                    if (!cached || 
-                        cached.enabled !== settings.enabled || 
-                        cached.frequency !== settings.frequency) {
+                    if (!cached || cached.enabled !== settings.enabled) {
                         matches = false;
                         break;
+                    }
+                    
+                    // Check time-based events
+                    if (settings.frequency !== undefined) {
+                        if (cached.frequency !== settings.frequency) {
+                            matches = false;
+                            break;
+                        }
+                    }
+                    
+                    // Check RPG events
+                    if (settings.serverTimeMinutes !== undefined) {
+                        if (cached.serverTimeMinutes !== settings.serverTimeMinutes ||
+                            cached.channelParticipation !== settings.channelParticipation) {
+                            matches = false;
+                            break;
+                        }
                     }
                 }
                 
@@ -415,7 +481,7 @@
          * Handle individual setting change (auto-switch to Custom)
          */
         onSettingChange: function() {
-            // Update settingsCache from UI
+            // Update settingsCache from UI for time-based events
             [...this.globalEvents, ...this.channelEvents].forEach(eventType => {
                 const checkbox = document.getElementById(`event-${eventType}-enabled`);
                 const slider = document.getElementById(`event-${eventType}-frequency`);
@@ -426,6 +492,22 @@
                     }
                     this.settingsCache[eventType].enabled = checkbox.checked;
                     this.settingsCache[eventType].frequency = parseInt(slider.value, 10);
+                }
+            });
+
+            // Update settingsCache from UI for RPG events
+            this.rpgEvents.forEach(eventType => {
+                const checkbox = document.getElementById(`event-${eventType}-enabled`);
+                const timeSlider = document.getElementById(`event-${eventType}-servertime`);
+                const participationSlider = document.getElementById(`event-${eventType}-participation`);
+
+                if (checkbox && timeSlider && participationSlider && this.settingsCache) {
+                    if (!this.settingsCache[eventType]) {
+                        this.settingsCache[eventType] = {};
+                    }
+                    this.settingsCache[eventType].enabled = checkbox.checked;
+                    this.settingsCache[eventType].serverTimeMinutes = parseInt(timeSlider.value, 10);
+                    this.settingsCache[eventType].channelParticipation = parseInt(participationSlider.value, 10);
                 }
             });
 
@@ -447,14 +529,20 @@
             const saved = localStorage.getItem('mirc_event_settings');
             const savedPreset = localStorage.getItem('mirc_event_preset');
             
+            console.log('[EventSettings] Loading settings from localStorage...');
+            console.log('[EventSettings] Saved settings:', saved);
+            
             if (saved) {
                 try {
                     this.settingsCache = JSON.parse(saved);
-                    this.applySettings();
+                    console.log('[EventSettings] Parsed settingsCache:', this.settingsCache);
+                    console.log('[EventSettings] RPG settings in cache:', this.settingsCache.rpg_event_1);
+                    // Note: applySettings() will be called by Config.loadConfigurations() after defaults are loaded
                 } catch (e) {
                     console.error('Failed to parse saved event settings:', e);
                 }
             } else {
+                console.log('[EventSettings] No saved settings, using Normal preset as default');
                 // No saved settings, use Normal preset as default
                 this.applyPreset('normal');
             }
@@ -465,24 +553,55 @@
             } else {
                 this.currentPreset = this.detectCurrentPreset();
             }
+            
+            console.log('[EventSettings] loadSettings() complete. Current preset:', this.currentPreset);
         },
 
         /**
          * Apply cached settings to Config.events
          */
         applySettings: function() {
+            console.log('[EventSettings] applySettings() called');
+            console.log('[EventSettings] settingsCache content:', JSON.stringify(this.settingsCache, null, 2));
+            
             if (!window.Config || !window.Config.events) {
-                console.warn('Config.events not available yet');
+                console.warn('[EventSettings] Config.events not available yet');
                 return;
             }
+            
+            console.log('[EventSettings] Config.events BEFORE applying:', JSON.stringify(window.Config.events, null, 2));
 
             for (const eventType in this.settingsCache) {
                 const settings = this.settingsCache[eventType];
-                if (window.Config.events[eventType]) {
-                    window.Config.events[eventType].enabled = settings.enabled;
+                console.log(`[EventSettings] Processing ${eventType}:`, settings);
+                
+                // Create event entry if it doesn't exist yet
+                if (!window.Config.events[eventType]) {
+                    console.log(`[EventSettings] Creating Config.events.${eventType} entry`);
+                    window.Config.events[eventType] = {};
+                }
+                
+                // Apply enabled state
+                window.Config.events[eventType].enabled = settings.enabled;
+                
+                // Apply frequency (for time-based events)
+                if (settings.frequency !== undefined) {
                     window.Config.events[eventType].frequency = settings.frequency;
                 }
+                
+                // Apply RPG-specific settings
+                if (settings.serverTimeMinutes !== undefined) {
+                    window.Config.events[eventType].serverTimeMinutes = settings.serverTimeMinutes;
+                    console.log(`[EventSettings] ✅ Applied serverTimeMinutes=${settings.serverTimeMinutes} to ${eventType}`);
+                }
+                if (settings.channelParticipation !== undefined) {
+                    window.Config.events[eventType].channelParticipation = settings.channelParticipation;
+                    console.log(`[EventSettings] ✅ Applied channelParticipation=${settings.channelParticipation} to ${eventType}`);
+                }
             }
+            
+            console.log('[EventSettings] Config.events AFTER applying:', JSON.stringify(window.Config.events, null, 2));
+            console.log('[EventSettings] Config.events.rpg_event_1 final state:', window.Config.events.rpg_event_1);
         },
 
         /**
@@ -500,6 +619,21 @@
                     this.settingsCache[eventType] = {
                         enabled: checkbox.checked,
                         frequency: parseInt(slider.value, 10)
+                    };
+                }
+            });
+
+            // Save RPG events
+            this.rpgEvents.forEach(eventType => {
+                const checkbox = document.getElementById(`event-${eventType}-enabled`);
+                const timeSlider = document.getElementById(`event-${eventType}-servertime`);
+                const participationSlider = document.getElementById(`event-${eventType}-participation`);
+
+                if (checkbox && timeSlider && participationSlider) {
+                    this.settingsCache[eventType] = {
+                        enabled: checkbox.checked,
+                        serverTimeMinutes: parseInt(timeSlider.value, 10),
+                        channelParticipation: parseInt(participationSlider.value, 10)
                     };
                 }
             });
@@ -549,6 +683,7 @@
             // Clear existing lists
             this.globalEventsList.innerHTML = '';
             this.channelEventsList.innerHTML = '';
+            this.rpgEventsList.innerHTML = '';
 
             // Populate global events
             this.globalEvents.forEach(eventType => {
@@ -563,6 +698,14 @@
                 const eventConfig = window.Config.events[eventType];
                 if (eventConfig) {
                     this.channelEventsList.appendChild(this.createEventControl(eventType, eventConfig));
+                }
+            });
+
+            // Populate RPG events
+            this.rpgEvents.forEach(eventType => {
+                const eventConfig = window.Config.events[eventType];
+                if (eventConfig) {
+                    this.rpgEventsList.appendChild(this.createRPGEventControl(eventType, eventConfig));
                 }
             });
         },
@@ -640,6 +783,176 @@
             });
 
             return container;
+        },
+
+        /**
+         * Create a control element for an RPG event (special handling with two sliders)
+         */
+        createRPGEventControl: function(eventType, eventConfig) {
+            const container = document.createElement('div');
+            container.className = 'event-item';
+            
+            container.style.backgroundColor = 'transparent';
+            container.style.border = 'none';
+            container.style.padding = '0 0 12px 0';
+            container.style.display = 'flex';
+            container.style.flexDirection = 'column';
+            container.style.gap = '8px';
+
+            // Get slider ranges for this event type
+            const range = this.sliderRanges[eventType] || { 
+                serverTime: { min: 5, max: 30 },
+                participation: { min: 10, max: 100 }
+            };
+
+            // Display name
+            const displayName = 'Time Travel Confidant';
+
+            // Get current values (from cache if available, otherwise from config)
+            const cached = this.settingsCache[eventType];
+            const enabled = cached ? cached.enabled : eventConfig.enabled;
+            const serverTimeMinutes = cached ? cached.serverTimeMinutes : eventConfig.serverTimeMinutes;
+            const channelParticipation = cached ? cached.channelParticipation : eventConfig.channelParticipation;
+
+            container.innerHTML = `
+                <div class="event-item-header" style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                    <input type="checkbox" 
+                           id="event-${eventType}-enabled" 
+                           class="event-checkbox" 
+                           style="width: 13px; height: 13px; cursor: pointer; margin: 0;"
+                           ${enabled ? 'checked' : ''}>
+                    <label for="event-${eventType}-enabled" 
+                           style="font-weight: bold; font-size: 11px; cursor: pointer; font-family: 'Consolas', 'Courier New', monospace; white-space: nowrap;">
+                        ${displayName}
+                    </label>
+                </div>
+                
+                <div class="rpg-slider-row" style="display: flex; flex-direction: column; gap: 3px; padding-left: 19px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span id="event-${eventType}-servertime-indicator" 
+                                  class="rpg-status-indicator" 
+                                  style="width: 6px; height: 6px; border-radius: 50%; background-color: #ff0000; display: inline-block;"
+                                  title="Criteria not met"></span>
+                            <label style="font-size: 11px; font-family: 'Consolas', 'Courier New', monospace;">Server Time:</label>
+                        </div>
+                        <label id="event-${eventType}-servertime-label" 
+                               style="font-size: 11px; color: #000000; font-family: 'Consolas', 'Courier New', monospace; white-space: nowrap;">
+                            ${serverTimeMinutes} min
+                        </label>
+                    </div>
+                    <input type="range" 
+                           id="event-${eventType}-servertime" 
+                           class="event-slider" 
+                           min="${range.serverTime.min}" 
+                           max="${range.serverTime.max}" 
+                           value="${serverTimeMinutes}"
+                           ${enabled ? '' : 'disabled'}>
+                </div>
+
+                <div class="rpg-slider-row" style="display: flex; flex-direction: column; gap: 3px; padding-left: 19px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span id="event-${eventType}-participation-indicator" 
+                                  class="rpg-status-indicator" 
+                                  style="width: 6px; height: 6px; border-radius: 50%; background-color: #ff0000; display: inline-block;"
+                                  title="Criteria not met"></span>
+                            <label style="font-size: 11px; font-family: 'Consolas', 'Courier New', monospace;">Channel Participation:</label>
+                        </div>
+                        <label id="event-${eventType}-participation-label" 
+                               style="font-size: 11px; color: #000000; font-family: 'Consolas', 'Courier New', monospace; white-space: nowrap;">
+                            ${channelParticipation} msg
+                        </label>
+                    </div>
+                    <input type="range" 
+                           id="event-${eventType}-participation" 
+                           class="event-slider" 
+                           min="${range.participation.min}" 
+                           max="${range.participation.max}" 
+                           value="${channelParticipation}"
+                           ${enabled ? '' : 'disabled'}>
+                </div>
+            `;
+
+            // Wire up checkbox to enable/disable sliders
+            const checkbox = container.querySelector(`#event-${eventType}-enabled`);
+            const timeSlider = container.querySelector(`#event-${eventType}-servertime`);
+            const timeLabel = container.querySelector(`#event-${eventType}-servertime-label`);
+            const participationSlider = container.querySelector(`#event-${eventType}-participation`);
+            const participationLabel = container.querySelector(`#event-${eventType}-participation-label`);
+
+            checkbox.addEventListener('change', () => {
+                timeSlider.disabled = !checkbox.checked;
+                participationSlider.disabled = !checkbox.checked;
+                this.onSettingChange();
+            });
+
+            timeSlider.addEventListener('input', () => {
+                const value = parseInt(timeSlider.value, 10);
+                timeLabel.textContent = `${value} min`;
+                this.onSettingChange();
+                this.updateRPGIndicators();
+            });
+
+            participationSlider.addEventListener('input', () => {
+                const value = parseInt(participationSlider.value, 10);
+                participationLabel.textContent = `${value} msg`;
+                this.onSettingChange();
+                this.updateRPGIndicators();
+            });
+
+            return container;
+        },
+
+        /**
+         * Update RPG event indicators based on current RPG state
+         */
+        updateRPGIndicators: function() {
+            if (!window.RPG || !window.RPG.state) return;
+
+            this.rpgEvents.forEach(eventType => {
+                const timeIndicator = document.getElementById(`event-${eventType}-servertime-indicator`);
+                const participationIndicator = document.getElementById(`event-${eventType}-participation-indicator`);
+                
+                if (!timeIndicator || !participationIndicator) return;
+
+                // Get current threshold settings
+                const timeSlider = document.getElementById(`event-${eventType}-servertime`);
+                const participationSlider = document.getElementById(`event-${eventType}-participation`);
+                
+                if (!timeSlider || !participationSlider) return;
+
+                const requiredMinutes = parseInt(timeSlider.value, 10);
+                const requiredMessages = parseInt(participationSlider.value, 10);
+
+                // Check RPG state
+                const rpgState = window.RPG.state;
+                let currentMinutes = 0;
+                let currentMessages = rpgState.userMessageCount || 0;
+
+                if (rpgState.observationStartTime) {
+                    const elapsed = Date.now() - rpgState.observationStartTime;
+                    currentMinutes = elapsed / (1000 * 60);
+                }
+
+                // Update time indicator
+                if (currentMinutes >= requiredMinutes) {
+                    timeIndicator.style.backgroundColor = '#00ff00';
+                    timeIndicator.title = `Criteria met (${Math.floor(currentMinutes)}/${requiredMinutes} min)`;
+                } else {
+                    timeIndicator.style.backgroundColor = '#ff0000';
+                    timeIndicator.title = `Criteria not met (${Math.floor(currentMinutes)}/${requiredMinutes} min)`;
+                }
+
+                // Update participation indicator
+                if (currentMessages >= requiredMessages) {
+                    participationIndicator.style.backgroundColor = '#00ff00';
+                    participationIndicator.title = `Criteria met (${currentMessages}/${requiredMessages} msg)`;
+                } else {
+                    participationIndicator.style.backgroundColor = '#ff0000';
+                    participationIndicator.title = `Criteria not met (${currentMessages}/${requiredMessages} msg)`;
+                }
+            });
         },
 
         /**

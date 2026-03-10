@@ -58,6 +58,10 @@ const IRCCommands = {
                 return this.cmdQuit(args);
             case 'help':
                 return this.cmdHelp(args);
+            case 'rpg':
+                return this.cmdRpg(args);
+            case 'rpg-chat':
+                return this.cmdRpgChat(args);
             default:
                 return {
                     success: false,
@@ -216,7 +220,7 @@ const IRCCommands = {
     },
 
     /**
-     * /msg - Send private message
+     * /msg - Send private message to a user (opens query window)
      * @param {Array} args - Command arguments
      */
     cmdMsg(args) {
@@ -232,12 +236,9 @@ const IRCCommands = {
         const target = args[0];
         const message = args.slice(1).join(' ');
 
-        UI.addMessage({
-            type: 'whisper',
-            nick: Config.state.nickname,
-            text: `-> ${target}: ${message}`,
-            timestamp: new Date()
-        }, 'Status');
+        // Send private message (creates query window)
+        // Note: UI.sendPrivateMessage will handle case-insensitive window matching
+        UI.sendPrivateMessage(target, message, true);
 
         return {
             success: true,
@@ -263,9 +264,9 @@ const IRCCommands = {
         const nick = args[0];
         const currentChannel = Config.state.currentChannel;
         
-        // Check if it's you
-        if (nick === Config.state.nickname) {
-            UI.addSystemMessage(`[WHOIS] ${nick}`, 'Status');
+        // Check if it's you (case-insensitive)
+        if (Utils.nicknameEquals(nick, Config.state.nickname)) {
+            UI.addSystemMessage(`[WHOIS] ${Config.state.nickname}`, 'Status');
             UI.addSystemMessage(`  Nickname: ${nick}`, 'Status');
             if (currentChannel && currentChannel !== 'Status') {
                 UI.addSystemMessage(`  Channel: ${currentChannel}`, 'Status');
@@ -274,14 +275,14 @@ const IRCCommands = {
             return { success: true, message: null, handled: true };
         }
         
-        // Check if it's an AI persona
+        // Check if it's an AI persona (now case-insensitive)
         const persona = Config.getPersona(nick);
         if (persona) {
             // Find which channel(s) the persona is in
             let channels = [];
             if (window.App.state.channelUsers) {
                 for (const [chan, users] of Object.entries(window.App.state.channelUsers)) {
-                    if (users.some(u => u.nick === nick)) {
+                    if (Utils.findUserByNick(users, persona.nickname)) {
                         channels.push(chan);
                     }
                 }
@@ -297,15 +298,17 @@ const IRCCommands = {
             return { success: true, message: null, handled: true };
         }
         
-        // Check if user is in current channel (lurker)
+        // Check if user is in current channel (lurker) - case-insensitive
         let inChannel = false;
+        let foundUser = null;
         if (currentChannel && currentChannel !== 'Status' && window.App.state.channelUsers[currentChannel]) {
-            inChannel = window.App.state.channelUsers[currentChannel].some(u => u.nick === nick);
+            foundUser = Utils.findUserByNick(window.App.state.channelUsers[currentChannel], nick);
+            inChannel = !!foundUser;
         }
         
         if (inChannel) {
-            UI.addSystemMessage(`[WHOIS] ${nick}`, 'Status');
-            UI.addSystemMessage(`  Nickname: ${nick}`, 'Status');
+            UI.addSystemMessage(`[WHOIS] ${foundUser.nick}`, 'Status');
+            UI.addSystemMessage(`  Nickname: ${foundUser.nick}`, 'Status');
             UI.addSystemMessage(`  Channel: ${currentChannel}`, 'Status');
             UI.addSystemMessage(`  [Lurker]`, 'Status');
         } else {
@@ -448,8 +451,8 @@ const IRCCommands = {
         const targetNick = args[0];
         const reason = args.length > 1 ? args.slice(1).join(' ') : Config.state.nickname;
 
-        // Check if target exists
-        const targetUser = users.find(u => u.nick === targetNick);
+        // Check if target exists (case-insensitive)
+        const targetUser = Utils.findUserByNick(users, targetNick);
         if (!targetUser) {
             UI.addErrorMessage(`No such user: ${targetNick}`, currentWindow);
             return {
@@ -459,8 +462,8 @@ const IRCCommands = {
             };
         }
 
-        // Cannot kick yourself
-        if (targetNick === Config.state.nickname) {
+        // Cannot kick yourself (case-insensitive)
+        if (Utils.nicknameEquals(targetUser.nick, Config.state.nickname)) {
             UI.addErrorMessage('You cannot kick yourself', currentWindow);
             return {
                 success: false,
@@ -860,6 +863,86 @@ const IRCCommands = {
     },
 
     /**
+     * /rpg - Manually trigger confidant RPG approach (debug command)
+     * @param {Array} args - Command arguments (optional: slip count)
+     */
+    cmdRpg(args) {
+        if (!window.RPG) {
+            return {
+                success: false,
+                message: 'RPG system not available',
+                handled: true
+            };
+        }
+
+        // Get slip count from args or default to 4
+        const slipCount = args.length > 0 ? parseInt(args[0]) : 4;
+
+        if (isNaN(slipCount) || slipCount < 1) {
+            return {
+                success: false,
+                message: 'Usage: /rpg [slipcount] - Default is 4 slips (3=subtle, 4=direct, 5+=confrontational)',
+                handled: true
+            };
+        }
+
+        UI.addSystemMessage(`[RPG] Manually triggering confidant approach (${slipCount} slips)`, 'Status');
+        
+        // Trigger the approach
+        try {
+            RPG.triggerApproachNow(slipCount);
+            UI.addSystemMessage(`[RPG] Approach triggered successfully`, 'Status');
+        } catch (error) {
+            console.error('[RPG Command] Error:', error);
+            return {
+                success: false,
+                message: `RPG trigger failed: ${error.message}`,
+                handled: true
+            };
+        }
+
+        return {
+            success: true,
+            message: null,
+            handled: true
+        };
+    },
+
+    /**
+     * /rpg-chat - Manually trigger free chat mode (for testing)
+     * @param {Array} args - Command arguments
+     */
+    cmdRpgChat(args) {
+        if (!window.ConfidantManager) {
+            return {
+                success: false,
+                message: 'RPG system not available',
+                handled: true
+            };
+        }
+
+        UI.addSystemMessage(`[RPG] Manually triggering free chat mode`, 'Status');
+        
+        try {
+            ConfidantManager.startFreeChat();
+            UI.addSystemMessage(`[RPG] Free chat mode started`, 'Status');
+        } catch (error) {
+            console.error('[RPG Command] Error:', error);
+            return {
+                success: false,
+                message: `Free chat trigger failed: ${error.message}`,
+                handled: true
+            };
+        }
+
+        return {
+            success: true,
+            message: null,
+            handled: true
+        };
+    },
+
+    /**
      * /help - Show available commands
      * @param {Array} args - Command arguments
      */
@@ -882,6 +965,8 @@ const IRCCommands = {
         UI.addSystemMessage(`  !op - Request ops from ChanServ`, 'Status');
         UI.addSystemMessage(`  /server [url] - View/change server address`, 'Status');
         UI.addSystemMessage(`  /quit [message] - Disconnect`, 'Status');
+        UI.addSystemMessage(`  /rpg [slips] - Trigger RPG confidant approach (debug)`, 'Status');
+        UI.addSystemMessage(`  /rpg-chat - Trigger RPG free chat mode (debug)`, 'Status');
         UI.addSystemMessage(`  /help - Show this help`, 'Status');
 
         return {
