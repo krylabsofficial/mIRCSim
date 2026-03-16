@@ -62,6 +62,8 @@ const IRCCommands = {
                 return this.cmdRpg(args);
             case 'rpg-chat':
                 return this.cmdRpgChat(args);
+            case 'rpg_echo':
+                return this.cmdRpgEcho(args);
             default:
                 return {
                     success: false,
@@ -311,6 +313,15 @@ const IRCCommands = {
             UI.addSystemMessage(`  Nickname: ${foundUser.nick}`, 'Status');
             UI.addSystemMessage(`  Channel: ${currentChannel}`, 'Status');
             UI.addSystemMessage(`  [Lurker]`, 'Status');
+        } else if (window.EchoManager && EchoManager.pastNick &&
+                   Utils.nicknameEquals(nick, EchoManager.pastNick) &&
+                   EchoManager.phase !== 'idle' && EchoManager.phase !== 'complete') {
+            UI.addSystemMessage(`[WHOIS] ${EchoManager.pastNick}`, 'Status');
+            UI.addSystemMessage(`  *** NICK COLLISION DETECTED ***`, 'Status');
+            UI.addSystemMessage(`  Host: unknown@localhost`, 'Status');
+            UI.addSystemMessage(`  Server: irc.efnet.net (1999)`, 'Status');
+            UI.addSystemMessage(`  Idle: 9131 days`, 'Status');
+            UI.addSystemMessage(`  [Temporal anomaly — user should not exist on this server]`, 'Status');
         } else {
             UI.addSystemMessage(`[WHOIS] No such nickname: ${nick}`, 'Status');
         }
@@ -943,6 +954,43 @@ const IRCCommands = {
     },
 
     /**
+     * /rpg_echo - Trigger The Echo scenario (meeting your 1999 self)
+     * @param {Array} args - Command arguments
+     */
+    cmdRpgEcho(args) {
+        if (!window.EchoPlugin) {
+            return {
+                success: false,
+                message: 'Echo plugin not available — ensure rpg-echo.js is loaded',
+                handled: true
+            };
+        }
+
+        if (window.RPGManager && RPGManager.activePlugin && RPGManager.activePlugin !== EchoPlugin) {
+            return {
+                success: false,
+                message: `Cannot start The Echo — another RPG scenario is already active (${RPGManager.activePlugin.name})`,
+                handled: true
+            };
+        }
+
+        UI.addSystemMessage('[RPG] Starting "The Echo" — your 1999 self is about to have opinions about you', 'Status');
+
+        try {
+            EchoPlugin.trigger();
+        } catch (error) {
+            console.error('[rpg_echo] Error:', error);
+            return {
+                success: false,
+                message: `Echo trigger failed: ${error.message}`,
+                handled: true
+            };
+        }
+
+        return { success: true, message: null, handled: true };
+    },
+
+    /**
      * /help - Show available commands
      * @param {Array} args - Command arguments
      */
@@ -967,6 +1015,7 @@ const IRCCommands = {
         UI.addSystemMessage(`  /quit [message] - Disconnect`, 'Status');
         UI.addSystemMessage(`  /rpg [slips] - Trigger RPG confidant approach (debug)`, 'Status');
         UI.addSystemMessage(`  /rpg-chat - Trigger RPG free chat mode (debug)`, 'Status');
+        UI.addSystemMessage(`  /rpg_echo - Trigger "The Echo" RPG scenario (debug)`, 'Status');
         UI.addSystemMessage(`  /help - Show this help`, 'Status');
 
         return {

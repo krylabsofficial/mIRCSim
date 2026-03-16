@@ -30,7 +30,13 @@ A fully local, retro IRC-style web application where you chat with AI-powered pe
 - 🔌 **Disconnect button** - Quick return to connection screen
 
 ### Experimental Features
-- 🎮 **RPG Mode: Time Travel Confidant** - After meeting certain activity thresholds, a perceptive persona may reach out via private message with suspicions about you. Navigate the conversation carefully—successful storyline progression unlocks a unique confidant persona who knows your secret and becomes available for ongoing private conversations. Features multi-stage dialogue system with LLM-powered responses and re-engagement mechanics.
+
+#### 🎮 RPG System
+A plugin-based RPG engine that triggers narrative questlines based on your in-session activity. All scenarios run inside the existing IRC interface—no separate game window, no menus. Configure and control them from the dedicated **RPG Settings** modal (🎮 toolbar button).
+
+- **Time Travel Confidant** — After meeting server-time and channel-participation thresholds, a perceptive persona reaches out via private message with suspicions about who you really are. Multi-stage LLM-powered dialogue system: observing → approach → discussion → reveal → Q&A → free-chat confidant. Once the questline completes, AcidBurn becomes a persistent conversation partner who knows your secret.
+
+- **The Echo** — After spending time in at least 3 channels, your 1999 teenage self (`YourNick_`) silently joins every channel you're in, then opens a private message. Navigate five escalating phases—collision, confrontation, evidence, crack (the moment of belief), and goodbye—before past-you disconnects with `Connection reset by fate`. A quiet coda message arrives 5 minutes later. Features rapid-fire scripted beats, LLM-driven responses within each phase, a `/whois` easter egg (9131 idle days), and the quit broadcast appearing in all your open channel windows.
 
 ## 🚀 Quick Start
 
@@ -101,12 +107,13 @@ Model choice is **critical** for the simulator to work properly. Many models wil
 ### ✅ Recommended Models (Tested & Working)
 
 - **Llama 3.1 (8B)** - excellent for IRC chat, highly recommended
+- **qwen3.5-9b-claude-4.6-opus-uncensored-distilled GGUF Q8_0** - Great non-reasoning uncensored Qwen3.5 finetune by LuffyTheFox, highly recommended
 - **llama-3.1-8b-lexi-uncensored-v2** - very stable uncensored Llama 3.1 finetune
 - **gemma-3-4b** - works well
 - **Gemma 2 (9B/27B Instruct)** - fast and concise
-- **Qwen3 4B Instruct 2507** - official base models
+- **Qwen3 4B Instruct 2507** - official base models, works well
 - **qwen3-4b-2507-instruct-uncensored-hauhaucs-aggressive** - stable uncensored Qwen3 finetune
-- **Qwen3.5 4B** - official base models
+- **Qwen3.5-4B-GGUF Q4_K_S** - (unsloth), seems to work
 
 ### ❌ Incompatible Models (Tested & NOT Working)
 
@@ -182,18 +189,22 @@ mIRCSim/
 │   └── styles.css          # Retro mIRC styling (1112 lines)
 │
 ├── js/                     # Core application modules
-│   ├── app.js              # Main orchestration, channel management (748 lines)
-│   ├── ui.js               # MDI windows, message rendering (1131 lines)
-│   ├── config.js           # Configuration, theme system (394 lines)
-│   ├── llm-client.js       # LM Studio API integration (353 lines)
-│   ├── irc-commands.js     # IRC command handlers (378 lines)
-│   ├── event-simulator.js  # Event simulation engine (517 lines)
+│   ├── app.js              # Main orchestration, channel management
+│   ├── ui.js               # MDI windows, message rendering
+│   ├── config.js           # Configuration, theme system
+│   ├── llm-client.js       # LM Studio API integration
+│   ├── irc-commands.js     # IRC command handlers (/rpg_echo, /whois easter egg)
+│   ├── event-simulator.js  # Event simulation engine
 │   ├── event-settings-ui.js # Event preset UI (Chaotic/Normal/Chill/Custom)
-│   ├── demo.js             # Demo mode logic (149 lines)
-│   ├── ini-parser.js       # INI file parser (148 lines)
-│   ├── username-generator.js # IRC username generation (98 lines)
-│   ├── topic-generator.js  # Channel topic derivation (113 lines)
-│   └── utils.js            # Utilities, helpers (274 lines)
+│   ├── rpg-manager.js      # RPG plugin registry + mutual exclusion
+│   ├── rpg-time-travel.js  # Time Travel Confidant scenario (plugin)
+│   ├── rpg-echo.js         # The Echo scenario (plugin)
+│   ├── rpg-settings-ui.js  # RPG Settings modal (🎮 toolbar button)
+│   ├── demo.js             # Demo mode logic
+│   ├── ini-parser.js       # INI file parser
+│   ├── username-generator.js # IRC username generation
+│   ├── topic-generator.js  # Channel topic derivation
+│   └── utils.js            # Utilities, helpers
 │
 └── settings/               # Configuration files (INI format)
     ├── README.md           # Detailed configuration guide
@@ -276,6 +287,35 @@ Config.setTheme('classic')  // Back to classic
 
 Themes persist in localStorage and apply on reload.
 
+### RPG Settings (🎮 Button)
+
+All RPG scenario configuration lives in a dedicated modal, accessible via the **🎮** button in the toolbar (next to the event settings button).
+
+**Scenario selector dropdown** switches between:
+
+#### Time Travel Confidant
+- **Enabled** — toggle the scenario on/off
+- **Server Time** slider — minimum minutes connected before trigger (5–30 min, default 10)
+- **Channel Participation** slider — minimum messages sent before trigger (10–100, default 25)
+- **Status dots** — red/green circles show live progress toward each threshold
+
+#### The Echo
+- **Enabled** — toggle the scenario on/off
+- **Server Time** slider — minimum minutes connected before trigger (3–20 min, default 5)
+- **Channels Joined** slider — minimum channels entered before trigger (1–5, default 3)
+- **Status dots** — gray while idle, green when scenario is active
+
+**Action bar** (appears under the dropdown for the selected scenario):
+
+| Button | Behaviour |
+|---|---|
+| **Status** | Live read-only display: `Enabled` / `Disabled` / `Active` / `Complete` |
+| **Force Trigger** | Immediately launches the scenario, bypassing all thresholds |
+| **Set Complete** | Skips straight to the post-quest coda without playing through the questline |
+| **Reset** | Clears all scenario state back to idle |
+
+Settings persist to localStorage separately from Event Settings.
+
 ### Event Settings (🎛️ Button)
 
 Event simulation is now configured through a **visual Settings UI** accessible via the tune (🎛️) button in the toolbar.
@@ -295,7 +335,6 @@ Event simulation is now configured through a **visual Settings UI** accessible v
 - **Topic changes:** Updates channel topic (blue color)
 - **Netsplits:** Server disconnections with delayed rejoins (brown color)
 - **K-lines:** Server bans (red color)
-- **RPG Event:** Time Travel Confidant trigger based on server time and message participation
 - **Idle chatter:** Background lurker messages (planned)
 
 **How to Use:**
@@ -304,15 +343,6 @@ Event simulation is now configured through a **visual Settings UI** accessible v
 3. Toggle events on/off with checkboxes
 4. Settings save automatically to localStorage
 5. Custom mode activates when you modify any preset value
-
-**RPG Event Settings:**
-The Event Settings modal includes a special "RPG Event" section for configuring the Time Travel Confidant feature:
-- **Server Time:** Minimum minutes online before trigger (5-30 min)
-- **Channel Participation:** Minimum messages sent before trigger (10-100 messages)
-- **Status Indicators:** Red/green circles show real-time progress toward thresholds
-- **Statusbar Tracking:** Bottom bar displays "Server: HH:MM:SS" and "Participation: X msg" counters
-
-Presets automatically configure RPG thresholds (Chaotic: 5min/10msg, Normal: 10min/25msg, Chill: 15min/40msg).
 
 **Lurker Pool:**
 Background users are loaded from the `[lurkers]` section in `personas.ini` (180+ names by default).
@@ -381,6 +411,11 @@ If the main user receives operator status (@) when joining, ChanServ sends a wel
 - **🗂️ Cascade Windows** - Stagger windows diagonally (Status first)
 - **⊞ Tile Windows** - Arrange non-minimized windows in grid layout
 
+### RPG Commands
+- `/rpg_echo` - Manually start The Echo scenario (bypasses trigger thresholds)
+- `/rpg` - Manually start the Time Travel Confidant scenario (bypasses trigger thresholds)
+- `/whois YourNick_` - During an active Echo scenario, reveals a hidden easter egg: `Nick Collision Detected — Idle: 9131 days`
+
 ### Server Commands
 - `/server url` - Change LM Studio server address
 - `/connect` - Reconnect to server
@@ -394,6 +429,7 @@ If the main user receives operator status (@) when joining, ChanServ sends a wel
 - Minimum 3-5 character nicknames for fuzzy matching
 - Tab key cycles through active windows, automatically focusing the input box
 - Statusbar (bottom) shows server time and participation count for RPG mode tracking
+- Use the 🎮 RPG Settings button to monitor scenario progress or force-trigger questlines for testing
 
 ## 🐛 Troubleshooting
 

@@ -68,7 +68,7 @@
             <div class="toolbar-group">
                 <button id="btn-disconnect" class="toolbar-btn" title="Disconnect">⚡</button>
                 <button id="btn-event-settings" class="toolbar-btn" title="Event Settings">🎛️</button>
-                <button class="toolbar-btn" title="Channels">📋</button>
+                <button id="btn-rpg-settings" class="toolbar-btn" title="RPG Settings">🎮</button>
                 <button class="toolbar-btn" title="Notify">🔔</button>
                 <button class="toolbar-btn" title="Favorites">⭐</button>
             </div>
@@ -172,14 +172,120 @@
                     <h3>Channel Events</h3>
                     <div id="channel-events-list" class="event-list"></div>
                 </div>
-                <div class="event-section">
-                    <h3>RPG Event #1</h3>
-                    <div id="rpg-events-list" class="event-list"></div>
-                </div>
             </div>
             <div class="modal-footer">
                 <button id="save-event-settings" class="modal-action-btn">Save</button>
                 <button id="cancel-event-settings" class="modal-action-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- RPG Settings Modal -->
+    <div id="rpg-settings-modal" class="event-modal">
+        <div class="event-modal-content">
+            <div class="window-titlebar">
+                <span class="window-icon">🎮</span>
+                <span class="window-title">RPG Settings</span>
+                <div class="window-controls">
+                    <button id="minimize-rpg-modal" class="window-btn minimize-btn" title="Minimize">_</button>
+                    <button id="close-rpg-modal" class="window-btn close-btn" title="Close">×</button>
+                </div>
+            </div>
+            <div class="modal-body">
+
+                <!-- Scenario selector -->
+                <div class="event-section" style="margin-bottom: 16px;">
+                    <label for="rpg-scenario-selector" style="font-family: 'MS Sans Serif', 'Tahoma', sans-serif; font-size: 12px; font-weight: bold; display: block; margin-bottom: 6px;">RPG Scenario:</label>
+                    <select id="rpg-scenario-selector" style="width: 100%; padding: 4px; font-family: 'MS Sans Serif', 'Tahoma', sans-serif; font-size: 12px; background: white; border: 2px inset #808080;">
+                        <option value="time_travel">Time Travel Confidant</option>
+                        <option value="the_echo">The Echo</option>
+                    </select>
+
+                    <!-- Scenario action bar -->
+                    <div style="display: flex; gap: 4px; margin-top: 8px;">
+                        <button id="rpg-status-btn" title="Current scenario state" style="flex: 1; padding: 3px 2px; font-family: 'MS Sans Serif', 'Tahoma', sans-serif; font-size: 10px; cursor: default; border: 2px inset #808080; background: #d4d0c8; font-weight: bold; min-width: 0; overflow: hidden; white-space: nowrap;">Enabled</button>
+                        <button id="rpg-force-trigger-btn" title="Force-launch this scenario now" style="flex: 1; padding: 3px 2px; font-family: 'MS Sans Serif', 'Tahoma', sans-serif; font-size: 10px; cursor: pointer; border: 2px outset #ffffff; background: #c0c0c0; min-width: 0; overflow: hidden; white-space: nowrap;">Force Trigger</button>
+                        <button id="rpg-set-complete-btn" title="Skip to post-quest coda" style="flex: 1; padding: 3px 2px; font-family: 'MS Sans Serif', 'Tahoma', sans-serif; font-size: 10px; cursor: pointer; border: 2px outset #ffffff; background: #c0c0c0; min-width: 0; overflow: hidden; white-space: nowrap;">Set Complete</button>
+                        <button id="rpg-reset-btn" title="Reset quest to initial state" style="flex: 1; padding: 3px 2px; font-family: 'MS Sans Serif', 'Tahoma', sans-serif; font-size: 10px; cursor: pointer; border: 2px outset #ffffff; background: #c0c0c0; min-width: 0; overflow: hidden; white-space: nowrap;">Reset</button>
+                    </div>
+                </div>
+
+                <!-- ── Time Travel Confidant ───────────────────────────── -->
+                <div id="rpg-panel-time_travel" class="rpg-scenario-panel">
+                    <div class="event-section">
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+                            <input type="checkbox" id="tt-enabled" class="event-checkbox" style="width: 13px; height: 13px; cursor: pointer; margin: 0;">
+                            <label for="tt-enabled" style="font-weight: bold; font-size: 11px; cursor: pointer; font-family: 'Consolas', 'Courier New', monospace;">Enabled</label>
+                        </div>
+
+                        <div style="display: flex; flex-direction: column; gap: 8px; padding-left: 4px;">
+
+                            <div style="display: flex; flex-direction: column; gap: 3px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <span id="tt-time-indicator" style="width: 6px; height: 6px; border-radius: 50%; background: #ff0000; display: inline-block;" title="Not met"></span>
+                                        <label style="font-size: 11px; font-family: 'Consolas', 'Courier New', monospace;">Server Time:</label>
+                                    </div>
+                                    <label id="tt-servertime-label" style="font-size: 11px; font-family: 'Consolas', 'Courier New', monospace;">10 min</label>
+                                </div>
+                                <input type="range" id="tt-servertime" class="event-slider" min="5" max="30" value="10">
+                            </div>
+
+                            <div style="display: flex; flex-direction: column; gap: 3px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <span id="tt-participation-indicator" style="width: 6px; height: 6px; border-radius: 50%; background: #ff0000; display: inline-block;" title="Not met"></span>
+                                        <label style="font-size: 11px; font-family: 'Consolas', 'Courier New', monospace;">Channel Participation:</label>
+                                    </div>
+                                    <label id="tt-participation-label" style="font-size: 11px; font-family: 'Consolas', 'Courier New', monospace;">25 msg</label>
+                                </div>
+                                <input type="range" id="tt-participation" class="event-slider" min="10" max="100" value="25">
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── The Echo ────────────────────────────────────────── -->
+                <div id="rpg-panel-the_echo" class="rpg-scenario-panel" style="display: none;">
+                    <div class="event-section">
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+                            <input type="checkbox" id="echo-enabled" class="event-checkbox" style="width: 13px; height: 13px; cursor: pointer; margin: 0;">
+                            <label for="echo-enabled" style="font-weight: bold; font-size: 11px; cursor: pointer; font-family: 'Consolas', 'Courier New', monospace;">Enabled</label>
+                        </div>
+
+                        <div style="display: flex; flex-direction: column; gap: 8px; padding-left: 4px;">
+
+                            <div style="display: flex; flex-direction: column; gap: 3px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <span id="echo-time-indicator" style="width: 6px; height: 6px; border-radius: 50%; background: #808080; display: inline-block;" title="Awaiting trigger"></span>
+                                        <label style="font-size: 11px; font-family: 'Consolas', 'Courier New', monospace;">Server Time:</label>
+                                    </div>
+                                    <label id="echo-servertime-label" style="font-size: 11px; font-family: 'Consolas', 'Courier New', monospace;">5 min</label>
+                                </div>
+                                <input type="range" id="echo-servertime" class="event-slider" min="3" max="20" value="5">
+                            </div>
+
+                            <div style="display: flex; flex-direction: column; gap: 3px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <span id="echo-channels-indicator" style="width: 6px; height: 6px; border-radius: 50%; background: #808080; display: inline-block;" title="Awaiting trigger"></span>
+                                        <label style="font-size: 11px; font-family: 'Consolas', 'Courier New', monospace;">Channels Joined:</label>
+                                    </div>
+                                    <label id="echo-channels-label" style="font-size: 11px; font-family: 'Consolas', 'Courier New', monospace;">3</label>
+                                </div>
+                                <input type="range" id="echo-channels" class="event-slider" min="1" max="5" value="3">
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button id="save-rpg-settings" class="modal-action-btn">Save</button>
+                <button id="cancel-rpg-settings" class="modal-action-btn">Cancel</button>
             </div>
         </div>
     </div>
@@ -197,7 +303,9 @@
     <script src="js/event-simulator.js?v=10"></script>
     <script src="js/rpg-manager.js?v=1"></script>
     <script src="js/rpg-time-travel.js?v=1"></script>
+    <script src="js/rpg-echo.js?v=1"></script>
     <script src="js/app.js?v=20"></script>
     <script src="js/event-settings-ui.js?v=23"></script>
+    <script src="js/rpg-settings-ui.js?v=1"></script>
 </body>
 </html>
