@@ -563,9 +563,34 @@ const EchoPlugin = {
         EchoManager.init();
     },
 
-    /** Channel messages are observed but not needed for this scenario (manual trigger only for now) */
     handleChannelMessage(message, channel) {
-        // No automatic trigger — /rpg_echo invokes trigger() directly
+        // Auto-trigger: fire when time + channel-count thresholds are both met
+        if (EchoManager.phase !== 'idle') return;
+
+        const settings = (window.Config && Config.events && Config.events.rpg_echo) || {};
+        if (settings.enabled === false) return;
+
+        const reqMinutes  = settings.serverTimeMinutes || 5;
+        const reqChannels = settings.channelsJoined    || 3;
+
+        // Time elapsed since user connected (reuse RPG observation start)
+        const startTime = window.RPG && RPG.state && RPG.state.observationStartTime
+            ? RPG.state.observationStartTime
+            : null;
+        if (!startTime) return;
+        const elapsedMin = (Date.now() - startTime) / 60000;
+
+        // Current channel count
+        const channelCount = (window.App && App.state && App.state.channelUsers)
+            ? Object.keys(App.state.channelUsers).length
+            : 0;
+
+        console.log(`[EchoPlugin] Auto-trigger check: time=${elapsedMin.toFixed(1)}/${reqMinutes}min, channels=${channelCount}/${reqChannels}`);
+
+        if (elapsedMin >= reqMinutes && channelCount >= reqChannels) {
+            console.log('[EchoPlugin] ✅ Conditions met — triggering The Echo');
+            EchoManager.start();
+        }
     },
 
     handlePrivateMessage(nickname, message) {

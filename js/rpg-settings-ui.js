@@ -313,6 +313,10 @@
             if (saved) {
                 try {
                     this.settings = JSON.parse(saved);
+                    // Migrate stale channelsJoined below current minimum
+                    if (this.settings.the_echo && this.settings.the_echo.channelsJoined < this.defaults.the_echo.channelsJoined) {
+                        this.settings.the_echo.channelsJoined = this.defaults.the_echo.channelsJoined;
+                    }
                 } catch (e) {
                     console.error('[RPGSettingsUI] Failed to parse saved settings:', e);
                     this.settings = JSON.parse(JSON.stringify(this.defaults));
@@ -388,17 +392,35 @@
         },
 
         updateEchoIndicators: function () {
-            // Echo trigger not yet auto-wired — indicators show placeholder state
             const timeInd = document.getElementById('echo-time-indicator');
             const chanInd = document.getElementById('echo-channels-indicator');
-            if (!timeInd || !chanInd) return;
+            const timeSlider = document.getElementById('echo-servertime');
+            const chanSlider = document.getElementById('echo-channels');
+            if (!timeInd || !chanInd || !timeSlider || !chanSlider) return;
 
-            // If EchoManager is active, show green; otherwise neutral gray
-            const active = window.EchoManager && EchoManager.phase !== 'idle' && EchoManager.phase !== 'complete';
-            timeInd.style.backgroundColor = active ? '#00ff00' : '#808080';
-            chanInd.style.backgroundColor = active ? '#00ff00' : '#808080';
-            timeInd.title = active ? 'Scenario active' : 'Awaiting trigger';
-            chanInd.title = active ? 'Scenario active' : 'Awaiting trigger';
+            const reqMinutes  = parseInt(timeSlider.value, 10);
+            const reqChannels = parseInt(chanSlider.value, 10);
+
+            // Time: reuse RPG observation start time (set when user connects)
+            let curMinutes = 0;
+            if (window.RPG && RPG.state && RPG.state.observationStartTime) {
+                curMinutes = (Date.now() - RPG.state.observationStartTime) / 60000;
+            }
+
+            // Channels: count channels the user is currently in
+            const curChannels = (window.App && App.state && App.state.channelUsers)
+                ? Object.keys(App.state.channelUsers).length
+                : 0;
+
+            const setDot = (el, met, cur, req, unit) => {
+                el.style.backgroundColor = met ? '#00ff00' : '#ff0000';
+                el.title = met
+                    ? `Criteria met (${Math.floor(cur)}/${req} ${unit})`
+                    : `Not yet (${Math.floor(cur)}/${req} ${unit})`;
+            };
+
+            setDot(timeInd, curMinutes  >= reqMinutes,  curMinutes,  reqMinutes,  'min');
+            setDot(chanInd, curChannels >= reqChannels, curChannels, reqChannels, 'channels');
         },
 
         // -------------------------------------------------------------------------

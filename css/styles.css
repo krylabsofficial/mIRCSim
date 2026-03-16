@@ -847,6 +847,10 @@ body {
     font-style: normal;
 }
 
+.message.system .message-text {
+    white-space: pre;
+}
+
 .message.error {
     color: #ff0000;
     font-weight: bold;
