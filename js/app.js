@@ -274,10 +274,10 @@ const App = {
             EventSettingsUI.init();
         }
 
-        // Initialize RPG system (Time Travel Confidant)
+        // Initialize RPG plugin system
         console.log('[STARTUP] Initializing RPG System...');
-        if (window.RPG) {
-            RPG.init();
+        if (window.RPGManager) {
+            RPGManager.init();
         }
 
         this.state.connected = true;
@@ -752,9 +752,9 @@ const App = {
             this.state.conversationHistory = this.state.conversationHistory.slice(-20);
         }
 
-        // Check for temporal slips (RPG System)
-        if (window.RPG) {
-            RPG.handleUserMessage(message, currentChannel);
+        // RPG System — route channel message to active or idle plugins
+        if (window.RPGManager) {
+            RPGManager.handleChannelMessage(message, currentChannel);
         }
 
         // Get active personas for current channel (from dynamic channel generation)
